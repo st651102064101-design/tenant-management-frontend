@@ -1,0 +1,594 @@
+/* Apple Design System - Tenant Management Application
+   Pure Apple Design Language with SF Pro aesthetics */
+
+/* DataTables Styles */
+@import 'https://cdn.datatables.net/1.13.7/css/jquery.dataTables.min.css';
+
+/* CSS Variables - Apple Color Palette */
+:root {
+  /* Primary Colors */
+  --apple-blue: #007AFF;
+  --apple-blue-hover: #0056CC;
+  --apple-green: #34C759;
+  --apple-red: #FF3B30;
+  --apple-orange: #FF9500;
+  --apple-yellow: #FFCC00;
+  --apple-purple: #AF52DE;
+  --apple-pink: #FF2D55;
+  --apple-teal: #5AC8FA;
+  
+  /* Gray Scale */
+  --apple-gray-1: #8E8E93;
+  --apple-gray-2: #AEAEB2;
+  --apple-gray-3: #C7C7CC;
+  --apple-gray-4: #D1D1D6;
+  --apple-gray-5: #E5E5EA;
+  --apple-gray-6: #F2F2F7;
+  
+  /* Background Colors */
+  --apple-bg-primary: #FFFFFF;
+  --apple-bg-secondary: #F2F2F7;
+  --apple-bg-tertiary: #FFFFFF;
+  
+  /* Text Colors */
+  --apple-text-primary: #1D1D1F;
+  --apple-text-secondary: #86868B;
+  --apple-text-tertiary: #AEAEB2;
+  
+  /* Shadows */
+  --apple-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.06);
+  --apple-shadow-md: 0 4px 6px rgba(0, 0, 0, 0.04), 0 2px 4px rgba(0, 0, 0, 0.06);
+  --apple-shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.06), 0 6px 10px rgba(0, 0, 0, 0.08);
+  --apple-shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.08), 0 10px 20px rgba(0, 0, 0, 0.1);
+  
+  /* Border Radius */
+  --apple-radius-sm: 8px;
+  --apple-radius-md: 12px;
+  --apple-radius-lg: 16px;
+  --apple-radius-xl: 20px;
+  --apple-radius-2xl: 24px;
+  
+  /* Transitions */
+  --apple-transition: all 0.2s cubic-bezier(0.25, 0.1, 0.25, 1);
+  --apple-transition-slow: all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+/* Reset & Base */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--apple-bg-secondary);
+  color: var(--apple-text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 17px;
+  line-height: 1.47059;
+  font-weight: 400;
+  letter-spacing: -0.022em;
+}
+
+/* Typography - Apple Style */
+h1 {
+  font-size: 48px;
+  font-weight: 600;
+  letter-spacing: -0.003em;
+  line-height: 1.08349;
+  color: var(--apple-text-primary);
+}
+
+h2 {
+  font-size: 32px;
+  font-weight: 600;
+  letter-spacing: 0.007em;
+  line-height: 1.125;
+  color: var(--apple-text-primary);
+}
+
+h3 {
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: 0.009em;
+  line-height: 1.16667;
+  color: var(--apple-text-primary);
+}
+
+h4 {
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: 0.011em;
+  line-height: 1.19048;
+  color: var(--apple-text-primary);
+}
+
+p {
+  font-size: 17px;
+  line-height: 1.47059;
+  font-weight: 400;
+  letter-spacing: -0.022em;
+  color: var(--apple-text-secondary);
+}
+
+a {
+  text-decoration: none;
+  color: var(--apple-blue);
+  transition: var(--apple-transition);
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* Apple Button Styles */
+button {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background-color: var(--apple-blue);
+  color: #86868b;
+  border: none;
+  padding: 12px 24px;
+  border-radius: var(--apple-radius-lg);
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: -0.022em;
+  cursor: pointer;
+  transition: var(--apple-transition);
+  white-space: nowrap;
+}
+
+button:hover {
+  background-color: var(--apple-blue-hover);
+  transform: scale(1.02);
+}
+
+button:active {
+  transform: scale(0.98);
+}
+
+button.secondary {
+  background-color: var(--apple-gray-6);
+  color: var(--apple-blue);
+}
+
+button.secondary:hover {
+  background-color: var(--apple-gray-5);
+}
+
+button.danger {
+  background-color: var(--apple-red);
+}
+
+button.danger:hover {
+  background-color: #E5342C;
+}
+
+button:disabled {
+  background-color: var(--apple-gray-4);
+  color: var(--apple-gray-1);
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Apple Input Styles */
+input, select, textarea {
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--apple-gray-4);
+  border-radius: var(--apple-radius-md);
+  font-size: 17px;
+  font-family: inherit;
+  letter-spacing: -0.022em;
+  background-color: var(--apple-bg-primary);
+  color: var(--apple-text-primary);
+  transition: var(--apple-transition);
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--apple-blue);
+  box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.15);
+}
+
+input::placeholder {
+  color: var(--apple-text-tertiary);
+}
+
+label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.008em;
+  color: var(--apple-text-secondary);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+/* Apple Card Style */
+.apple-card {
+  background: var(--apple-bg-primary);
+  border-radius: var(--apple-radius-xl);
+  padding: 24px;
+  box-shadow: var(--apple-shadow-md);
+  transition: var(--apple-transition);
+}
+
+.apple-card:hover {
+  box-shadow: var(--apple-shadow-lg);
+  transform: translateY(-2px);
+}
+
+/* Apple Table Styles */
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background-color: var(--apple-bg-primary);
+  border-radius: var(--apple-radius-lg);
+  overflow: hidden;
+  box-shadow: var(--apple-shadow-md);
+}
+
+thead {
+  background: var(--apple-gray-6);
+}
+
+th {
+  padding: 16px 20px;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.008em;
+  color: var(--apple-text-secondary);
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--apple-gray-5);
+}
+
+td {
+  padding: 16px 20px;
+  font-size: 15px;
+  color: var(--apple-text-primary);
+  border-bottom: 1px solid var(--apple-gray-5);
+}
+
+tbody tr {
+  transition: var(--apple-transition);
+}
+
+tbody tr:hover {
+  background-color: var(--apple-gray-6);
+}
+
+tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* DataTables Apple Override */
+.dataTables_wrapper {
+  font-family: inherit;
+  padding: 20px 0;
+}
+
+.dataTables_filter {
+  margin-bottom: 20px;
+}
+
+/* Ensure DataTables layout cells can scroll horizontally when needed */
+.dt-layout-cell.dt-layout-full {
+  overflow-x: auto; /* allow horizontal scrolling */
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch; /* smooth scrolling on iOS */
+}
+
+/* Prevent the search control from wrapping and allow horizontal scroll inside its cell */
+.dt-layout-cell.dt-layout-end .dt-search {
+  white-space: nowrap; /* keep the label and input on one line */
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dt-layout-cell.dt-layout-end .dt-search input {
+  min-width: 200px; /* ensure input has a usable width */
+}
+
+/* Styling for combined details column */
+.details-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.details-cell .recipient-main {
+  display: flex;
+  flex-direction: column;
+}
+
+.recipient-name {
+  font-weight: 600;
+  color: var(--apple-text-primary);
+}
+
+.recipient-meta {
+  display: flex;
+  gap: 12px;
+  color: var(--apple-text-secondary);
+  font-size: 13px;
+  margin-top: 6px;
+}
+
+.tag-badge.small {
+  margin-left: 8px;
+  font-size: 13px;
+  padding: 4px 8px;
+  border-radius: 999px;
+}
+
+.dataTables_filter input {
+  padding: 12px 16px;
+  border: 1px solid var(--apple-gray-4);
+  border-radius: var(--apple-radius-md);
+  font-size: 15px;
+  margin-left: 12px;
+  min-width: 280px;
+}
+
+.dataTables_filter input:focus {
+  outline: none;
+  border-color: var(--apple-blue);
+  box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.15);
+}
+
+.dataTables_length select {
+  padding: 8px 12px;
+  border: 1px solid var(--apple-gray-4);
+  border-radius: var(--apple-radius-sm);
+  font-size: 15px;
+  margin: 0 8px;
+  width: auto;
+}
+
+.dataTables_info {
+  font-size: 13px;
+  color: var(--apple-text-secondary);
+  padding-top: 16px;
+}
+
+.dataTables_paginate {
+  padding-top: 16px;
+}
+
+.dataTables_paginate .paginate_button {
+  padding: 10px 16px;
+  margin: 0 4px;
+  border: none !important;
+  border-radius: var(--apple-radius-sm);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--apple-text-primary) !important;
+  background: var(--apple-gray-6) !important;
+  cursor: pointer;
+  transition: var(--apple-transition);
+}
+
+/* Style for new DataTables paging buttons (simple paging) */
+nav[aria-label="pagination"] {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.dt-paging-button {
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: var(--apple-gray-6);
+  color: var(--apple-text-primary);
+  border: none;
+  min-width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--apple-transition);
+}
+
+.dt-paging-button:hover:not(.disabled) {
+  background: var(--apple-gray-5);
+}
+
+.dt-paging-button.current {
+  background: var(--apple-blue);
+  color: #ffffff;
+}
+
+.dt-paging-button.disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Page indicator between previous and next */
+.dt-page-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 56px;
+  padding: 6px 10px;
+  font-weight: 600;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--apple-text-primary);
+}
+
+.dataTables_paginate .paginate_button:hover {
+  background: var(--apple-gray-5) !important;
+  color: var(--apple-text-primary) !important;
+}
+
+.dataTables_paginate .paginate_button.current {
+  background: var(--apple-blue) !important;
+  color: #FFFFFF !important;
+}
+
+.dataTables_paginate .paginate_button.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+table.dataTable thead th {
+  border-bottom: none;
+}
+
+table.dataTable.no-footer {
+  border-bottom: none;
+}
+
+/* Apple Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+  animation: fadeIn 0.2s ease;
+}
+
+.modal-content {
+  background: var(--apple-bg-primary);
+  border-radius: var(--apple-radius-2xl);
+  max-width: 560px;
+  width: 100%;
+  max-height: 85vh;
+  overflow: hidden;
+  box-shadow: var(--apple-shadow-xl);
+  animation: slideUp 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Apple Badge Styles */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 100px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.008em;
+}
+
+.badge-success {
+  background: rgba(52, 199, 89, 0.15);
+  color: var(--apple-green);
+}
+
+.badge-warning {
+  background: rgba(255, 149, 0, 0.15);
+  color: var(--apple-orange);
+}
+
+.badge-danger {
+  background: rgba(255, 59, 48, 0.15);
+  color: var(--apple-red);
+}
+
+.badge-info {
+  background: rgba(0, 122, 255, 0.15);
+  color: var(--apple-blue);
+}
+
+/* Scrollbar Apple Style */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--apple-gray-3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--apple-gray-2);
+}
+
+/* Selection */
+::selection {
+  background: rgba(0, 122, 255, 0.3);
+  color: var(--apple-text-primary);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  body {
+    font-size: 15px;
+  }
+  
+  h1 { font-size: 32px; }
+  h2 { font-size: 24px; }
+  h3 { font-size: 20px; }
+  
+  button {
+    padding: 10px 20px;
+    font-size: 15px;
+  }
+  
+  th, td {
+    padding: 12px 16px;
+    font-size: 14px;
+  }
+}
