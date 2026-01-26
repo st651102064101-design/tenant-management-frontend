@@ -93,14 +93,14 @@
             <td class="details-cell" data-label="รายละเอียด">
               <div class="recipient-info">
                 <div class="recipient-avatar">
-                  {{ pkg.recipientName ? pkg.recipientName.charAt(0) : '?' }}
+                  {{ getPackageRecipient(pkg).charAt(0) || '?' }}
                 </div>
                 <div class="recipient-main">
-                  <div class="recipient-name">{{ pkg.recipientName || '-' }}</div>
+                  <div class="recipient-name">{{ getPackageRecipient(pkg) }}</div>
                   <div class="recipient-meta">
-                    <span v-if="pkg.phone" class="meta-phone">📞 <a :href="'tel:' + pkg.phone">{{ formatPhone(pkg.phone) }}</a></span>
-                    <span v-if="pkg.address" class="meta-address">📍 {{ pkg.address }}</span>
-                    <span v-if="pkg.scannedAt" class="meta-time">🕐 {{ formatDateTime(pkg.scannedAt) }}</span>
+                    <span v-if="getPackagePhone(pkg)" class="meta-phone">📞 <a :href="'tel:' + getPackagePhoneDigits(pkg)">{{ formatPhone(getPackagePhone(pkg)) }}</a></span>
+                    <span class="meta-address" :title="getPackageAddress(pkg)">📍 {{ getPackageAddressShort(pkg) }}</span>
+                    <span v-if="getPackageDateTime(pkg)" class="meta-time">🕐 {{ getPackageDateTime(pkg) }}</span>
                   </div>
                 </div>
               </div>
@@ -273,6 +273,114 @@ function formatDateTime(dateStr) {
   });
 }
 
+// Parse raw description/rawText for recipient, phone, address, datetime
+function parsePackageText(text) {
+  if (!text) return {};
+  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const joined = lines.join('\n');
+  const result = {};
+
+  // Extract date (YYYY-MM-DD) and time (HH:MM:SS) if present
+  const dateMatch = joined.match(/(\d{4}-\d{2}-\d{2})/);
+  const timeMatch = joined.match(/(\d{2}:\d{2}:\d{2})/);
+  if (dateMatch) result.date = dateMatch[1];
+  if (timeMatch) result.time = timeMatch[1];
+
+  // Extract phone (Thai formats) - look for sequences of 9-11 digits
+  const phoneMatch = joined.match(/(\+?\d[\d\-\s]{8,}\d)/);
+  if (phoneMatch) {
+    const digits = phoneMatch[1].replace(/\D/g, '');
+    if (digits.length >= 8 && digits.length <= 13) result.phone = digits;
+  }
+
+  // Recipient: look for 'Receiver:' or 'Receiver' or 'ผู้รับ' or 'Receiver:' in English
+  const recLine = lines.find(l => /Receiver\s*:|ผู้รับ\s*:|Receiver\s+/i.test(l));
+  if (recLine) {
+    const m = recLine.split(/:\s*/).slice(1).join(':').trim();
+    if (m) result.recipient = m;
+  } else {
+    // fallback: look for line with Thai personal name (two words) — as a heuristic
+    const thaiNameLine = lines.find(l => /[ก-๙]+\s+[ก-๙]+/.test(l));
+    if (thaiNameLine) result.recipient = thaiNameLine;
+  }
+
+  // Address: take lines after recipient line up to Phone or Date
+  if (result.recipient) {
+    const idx = lines.findIndex(l => l.includes(result.recipient));
+    if (idx >= 0) {
+      const addressLines = [];
+      for (let i = idx + 1; i < lines.length; i++) {
+        const l = lines[i];
+        if (/Phone\s*:|LAZADA Order Number|\d{4}-\d{2}-\d{2}|\d{2}:\d{2}:\d{2}/i.test(l)) break;
+        // stop at obvious English header words
+        if (/Sender\s*:|Receiver\s*:|Phone\s*:|LAZADA|Order Number/i.test(l)) break;
+        addressLines.push(l);
+      }
+      if (addressLines.length) result.address = addressLines.join(' ');
+    }
+  }
+
+  // If no address, try to get any line that looks like address (contains numbers + words)
+  if (!result.address) {
+    const addrLine = lines.find(l => /\d{1,4}\s+.+/.test(l));
+    if (addrLine) result.address = addrLine;
+  }
+
+  return result;
+}
+
+function getPackageRecipient(pkg) {
+  if (pkg.recipientName) return pkg.recipientName;
+  if (pkg.recipient) return pkg.recipient;
+  if (pkg.recipient_name) return pkg.recipient_name;
+  const text = pkg.description || pkg.rawText || pkg.raw_text || '';
+  const parsed = parsePackageText(text);
+  return parsed.recipient || 'ไม่ระบุ';
+}
+
+function getPackagePhone(pkg) {
+  if (pkg.phone) return pkg.phone;
+  const text = pkg.description || pkg.rawText || pkg.raw_text || '';
+  const parsed = parsePackageText(text);
+  return parsed.phone || null;
+}
+
+function getPackagePhoneDigits(pkg) {
+  const phone = getPackagePhone(pkg) || '';
+  return phone.replace(/\D/g, '');
+}
+
+function getPackageAddress(pkg) {
+  // Prefer explicit package address (unless it's the 'ไม่ระบุ' placeholder), then tenant.address (from backend), then parsed text
+  if (pkg.address && pkg.address !== 'ไม่ระบุ') return pkg.address;
+  if (pkg.tenant && (pkg.tenant.address || pkg.tenant_address)) return pkg.tenant.address || pkg.tenant_address;
+  const text = pkg.description || pkg.rawText || pkg.raw_text || '';
+  const parsed = parsePackageText(text);
+  return parsed.address || 'ไม่ระบุ';
+}
+
+function getPackageAddressShort(pkg, max = 30) {
+  const full = getPackageAddress(pkg);
+  if (!full || full === 'ไม่ระบุ') return 'ไม่ระบุ';
+  if (full.length <= max) return full;
+  return full.slice(0, max).trim() + '...';
+}
+
+function getPackageDateTime(pkg) {
+  // prefer explicit scannedAt / created_at, fallback to parsed date+time
+  const dt = pkg.scannedAt || pkg.scanned_at || pkg.created_at || null;
+  if (dt) return formatDateTime(dt);
+  const text = pkg.description || pkg.rawText || pkg.raw_text || '';
+  const parsed = parsePackageText(text);
+  if (parsed.date) {
+    const combined = parsed.time ? `${parsed.date}T${parsed.time}` : `${parsed.date}`;
+    // try to build Date
+    const d = new Date(combined);
+    if (!isNaN(d.getTime())) return formatDateTime(d.toISOString());
+  }
+  return null;
+}
+
 function openImageModal(pkg) {
   selectedImage.value = pkg;
 }
@@ -311,35 +419,9 @@ function initDataTable() {
         // Disable ordering on image, status and action columns (indices after reduction)
         { orderable: false, targets: [1, 4, 5] },  // ภาพ, สถานะ, การกระทำ
       ],
-      // Update the page indicator on each draw to avoid DOM observers and focus issues
+      // drawCallback intentionally left empty to avoid inline page indicator
       drawCallback: function () {
-        try {
-          const api = this.api();
-          const info = api.page.info();
-          const page = info.page + 1;
-          const pages = info.pages;
-
-          const paginateContainer = document.querySelector('#packagesTable_wrapper .dataTables_paginate') ||
-                                    document.querySelector('#packagesTable_wrapper nav[aria-label="pagination"]');
-          if (!paginateContainer) return;
-
-          const prevBtn = paginateContainer.querySelector('.previous, button.previous, .dt-paging-button.previous');
-          const nextBtn = paginateContainer.querySelector('.next, button.next, .dt-paging-button.next');
-
-          let indicator = paginateContainer.querySelector('.dt-page-indicator');
-          if (!indicator) {
-            indicator = document.createElement('span');
-            indicator.className = 'dt-page-indicator';
-            if (prevBtn && prevBtn.parentNode) prevBtn.parentNode.insertBefore(indicator, prevBtn.nextSibling);
-            else if (nextBtn && nextBtn.parentNode) nextBtn.parentNode.insertBefore(indicator, nextBtn);
-            else paginateContainer.appendChild(indicator);
-          }
-
-          indicator.textContent = `${page} / ${pages}`;
-          indicator.style.display = pages > 1 ? 'inline-flex' : 'none';
-        } catch (e) {
-          // ignore errors silently
-        }
+        // page indicator removed per UI preference
       }
     });
   });

@@ -95,16 +95,18 @@
       <div class="recent-packages-grid">
         <div v-for="pkg in recentPackages" :key="pkg.id" class="recent-package-item">
           <div class="package-icon">
-            <svg viewBox="0 0 24 24" fill="currentColor">
+            <img v-if="getPackageImageRaw(pkg)" :src="getImageUrl(getPackageImageRaw(pkg))" alt="พัสดุ" class="package-thumb" />
+            <svg v-else viewBox="0 0 24 24" fill="currentColor">
               <path d="M19 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zm-7-2h2v-4h4v-2h-4V7h-2v4H8v2h4z"/>
             </svg>
           </div>
           <div class="package-details">
-            <h4>{{ pkg.recipient }}</h4>
-            <p class="package-desc">{{ pkg.description || 'ไม่มีรายละเอียด' }}</p>
+            <h4>{{ getPackageRecipient(pkg) }}</h4>
             <div class="package-meta">
-              <span class="package-date">{{ formatDate(pkg.date_received) }}</span>
-              <span v-if="pkg.tenant" class="package-tenant">{{ pkg.tenant.name }} ({{ pkg.tenant.room_number }})</span>
+              <span v-if="getPackagePhone(pkg)" class="package-phone">📞 <a :href="'tel:' + getPackagePhoneDigits(pkg)">{{ formatPhoneShort(getPackagePhone(pkg)) }}</a></span>
+              <span class="package-address" :title="getPackageAddress(pkg)">📍 {{ getPackageAddressShort(pkg) }}</span>
+              <span class="package-date">{{ getPackageDate(pkg) }}</span>
+              <span v-if="pkg.tenant" class="package-tenant">{{ getPackageTenantLabel(pkg) }}</span>
               <span v-else class="package-unmatched">รอจับคู่</span>
             </div>
           </div>
@@ -122,7 +124,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { reportAPI, tenantAPI, packageAPI } from '../api.js';
-import { errorMessages, WS_URL } from '../config.js';
+import { errorMessages, WS_URL, API_BASE_URL } from '../config.js';
 import { useDialog } from '../composables/useDialog.js';
 import $ from 'jquery';
 import DataTable from 'datatables.net-dt';
@@ -180,6 +182,61 @@ function formatDate(dateString) {
   });
 }
 
+function formatDateTime(dateStr) {
+  if (!dateStr) return '-';
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return '-';
+  return date.toLocaleString('th-TH', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+}
+
+// Helpers for scanned package fields (support multiple API field names)
+function getPackageDateRaw(pkg) {
+  return pkg.date_received || pkg.scannedAt || pkg.scanned_at || pkg.created_at || null;
+}
+
+function getPackageDate(pkg) {
+  const raw = getPackageDateRaw(pkg);
+  if (raw) {
+    const d = new Date(raw);
+    if (!isNaN(d.getTime())) return formatDateTime(d.toISOString());
+    return formatDate(raw);
+  }
+
+  // Fallback: parse from description/raw text
+  const text = pkg.description || pkg.rawText || pkg.raw_text || '';
+  const parsed = typeof parsePackageTextMini === 'function' ? parsePackageTextMini(text) : {};
+  if (parsed.date) {
+    const combined = parsed.time ? `${parsed.date}T${parsed.time}` : parsed.date;
+    const d2 = new Date(combined);
+    if (!isNaN(d2.getTime())) return formatDateTime(d2.toISOString());
+    return formatDate(parsed.date);
+  }
+
+  return '-';
+}
+
+function getPackageRecipient(pkg) {
+  return pkg.recipientName || pkg.recipient || pkg.recipient_name || (pkg.tenant && pkg.tenant.name) || 'ไม่ระบุ';
+}
+
+function getPackageDescription(pkg) {
+  return pkg.description || pkg.rawText || pkg.raw_text || pkg.address || 'ไม่มีรายละเอียด';
+}
+
+function getPackageTenantLabel(pkg) {
+  if (!pkg.tenant) return null;
+  const name = pkg.tenant.name || pkg.tenantName || '';
+  const room = pkg.tenant.room || pkg.tenant_room || pkg.tenant.room_number || '';
+  return room ? `${name} (${room})` : name;
+}
+
 function getTypeIcon(type) {
   const icons = {
     monthly: '📅',
@@ -189,6 +246,79 @@ function getTypeIcon(type) {
     incident: '⚠️',
   };
   return icons[type] || '📋';
+}
+
+// Image helpers for recent packages
+function getPackageImageRaw(pkg) {
+  return pkg.imagePath || pkg.image_path || pkg.imageUrl || pkg.image || null;
+}
+
+function getImageUrl(path) {
+  if (!path) return '';
+  if (path.startsWith('data:')) return path;
+  if (path.startsWith('http')) return path;
+  if (path.startsWith('/')) return `${API_BASE_URL}${path}`;
+  return `${API_BASE_URL}/uploads/${path}`;
+}
+
+// Parse raw description/rawText to extract phone, address, date/time (lightweight)
+function parsePackageTextMini(text) {
+  if (!text) return {};
+  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const joined = lines.join('\n');
+  const result = {};
+
+  const dateMatch = joined.match(/(\d{4}-\d{2}-\d{2})/);
+  const timeMatch = joined.match(/(\d{2}:\d{2}:\d{2})/);
+  if (dateMatch) result.date = dateMatch[1];
+  if (timeMatch) result.time = timeMatch[1];
+
+  const phoneMatch = joined.match(/(\+?\d[\d\-\s]{8,}\d)/);
+  if (phoneMatch) {
+    const digits = phoneMatch[1].replace(/\D/g, '');
+    if (digits.length >= 8 && digits.length <= 13) result.phone = digits;
+  }
+
+  // Attempt to find an address-like line (contains number and Thai/English words)
+  const addrLine = lines.find(l => /\d/.test(l) && /[ก-๙A-Za-z]/.test(l));
+  if (addrLine) result.address = addrLine;
+
+  return result;
+}
+
+function getPackagePhone(pkg) {
+  if (pkg.phone) return pkg.phone;
+  const text = pkg.description || pkg.rawText || pkg.raw_text || '';
+  const parsed = parsePackageTextMini(text);
+  return parsed.phone || null;
+}
+
+function getPackagePhoneDigits(pkg) {
+  const phone = getPackagePhone(pkg) || '';
+  return phone.replace(/\D/g, '');
+}
+
+function formatPhoneShort(phone) {
+  if (!phone) return '-';
+  const cleaned = phone.replace(/\D/g, '');
+  if (cleaned.length === 10) return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
+  return phone;
+}
+
+function getPackageAddress(pkg) {
+  // Prefer explicit package address (unless it's the 'ไม่ระบุ' placeholder), then tenant.address (from backend), then parsed text
+  if (pkg.address && pkg.address !== 'ไม่ระบุ') return pkg.address;
+  if (pkg.tenant && (pkg.tenant.address || pkg.tenant_address)) return pkg.tenant.address || pkg.tenant_address;
+  const text = pkg.description || pkg.rawText || pkg.raw_text || '';
+  const parsed = parsePackageTextMini(text);
+  return parsed.address || 'ไม่ระบุ';
+}
+
+function getPackageAddressShort(pkg, max = 30) {
+  const full = getPackageAddress(pkg);
+  if (!full || full === 'ไม่ระบุ') return 'ไม่ระบุ';
+  if (full.length <= max) return full;
+  return full.slice(0, max).trim() + '...';
 }
 
 function getReportTypeLabel(type) {
@@ -242,8 +372,12 @@ async function fetchStatistics() {
 async function fetchRecentPackages() {
   try {
     const packages = await packageAPI.getAll();
-    // เรียงตามวันที่ล่าสุดและเอา 5 รายการแรก
-    const sortedPackages = packages.sort((a, b) => new Date(b.date_received) - new Date(a.date_received));
+    // เรียงตามวันที่ล่าสุดและเอา 5 รายการแรก (รองรับหลายชื่อฟิลด์วันที่)
+    const sortedPackages = packages.sort((a, b) => {
+      const da = new Date(getPackageDateRaw(a) || 0);
+      const db = new Date(getPackageDateRaw(b) || 0);
+      return db - da;
+    });
     recentPackages.value = sortedPackages.slice(0, 5);
   } catch (error) {
     console.error('Error fetching recent packages', error);
@@ -577,7 +711,14 @@ onUnmounted(() => {
 .package-icon svg {
   width: 20px;
   height: 20px;
-  color: #FFFFFF;
+}
+
+.package-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  object-fit: cover;
+  display: block;
 }
 
 .package-details {
