@@ -7,11 +7,17 @@
 const isDev = import.meta.env.DEV;
 const isProd = import.meta.env.PROD;
 
-// Export API_BASE_URL for direct use
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+// Export API_BASE_URL for direct use. Fallback to constructed host:port if not provided.
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || `http://${import.meta.env.VITE_BACKEND_HOST}:${import.meta.env.VITE_BACKEND_PORT}`;
 
 // WebSocket URL (convert http to ws)
-export const WS_URL = API_BASE_URL.replace(/^http/, 'ws');
+export const WS_URL = (() => {
+  try {
+    return API_BASE_URL.replace(/^http/, 'ws');
+  } catch (e) {
+    return `ws://${import.meta.env.VITE_BACKEND_HOST}:${import.meta.env.VITE_BACKEND_PORT}`;
+  }
+})();
 
 export const config = {
   // API Configuration

@@ -11,7 +11,7 @@
       <div class="row g-3 align-items-start info-grid" v-if="piInfo">
         <div class="info-item col-12 col-md-6">
           <span class="info-label">⏱️ เวลาทำงาน</span>
-          <span class="info-value">{{ piInfo.uptime || 'ไม่ทราบ' }}</span>
+          <span class="info-value">{{ uptimeDisplay || piInfo.uptimeThai || piInfo.uptime || 'ไม่ทราบ' }}</span>
         </div>
         <div class="info-item col-12 col-md-6">
           <span class="info-label">🌡️ อุณหภูมิ CPU</span>
@@ -27,61 +27,21 @@
         </div>
         <div class="info-item col-12 col-md-6">
           <span class="info-label">📡 สถานะบริการ OCR</span>
-          <span class="info-value" :class="{ 'status-active': serviceStatus.isRunning, 'status-inactive': !serviceStatus.isRunning }">
-            {{ serviceStatus.isRunning ? '🟢 ทำงานอยู่' : '🔴 หยุดทำงาน' }}
-          </span>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="info-value" :class="{ 'status-active': serviceStatus.isRunning, 'status-inactive': !serviceStatus.isRunning }">
+              {{ serviceStatus.isRunning ? '🟢 ทำงานอยู่' : '🔴 หยุดทำงาน' }}
+            </span>
+            <span :title="wsConnected ? 'WebSocket: connected' : 'WebSocket: disconnected'" style="font-size:0.9rem;color:#6b6b70">
+              {{ wsConnected ? 'WS: เชื่อมต่อ' : 'WS: ตัดการเชื่อมต่อ' }}
+            </span>
+          </div>
         </div>
       </div>
       <div v-else class="loading">
         <span>กำลังโหลด...</span>
       </div>
-      <button @click="refreshInfo" class="btn-refresh" :disabled="loading">
-        🔄 รีเฟรช
-      </button>
     </div>
 
-    <!-- Control Buttons -->
-    <div class="control-section">
-      <h2>ควบคุมบริการ OCR</h2>
-      <div class="button-grid">
-        <button 
-          @click="controlService('start')" 
-          class="control-btn btn-start"
-          :disabled="loading || serviceStatus.isRunning"
-          data-tooltip="เริ่มบริการ OCR — เปิดการสแกนภาพและส่งผลไปยังระบบ"
-          title="เริ่มบริการ OCR">
-          <span class="btn-icon">▶️</span>
-          <span class="btn-text">เริ่มระบบ</span>
-        </button>
-        <button 
-          @click="controlService('stop')" 
-          class="control-btn btn-stop"
-          :disabled="loading || !serviceStatus.isRunning"
-          data-tooltip="หยุดบริการ OCR ชั่วคราว — หยุดการสแกนและการแจ้งเตือนเสียง"
-          title="หยุดบริการ OCR">
-          <span class="btn-icon">⏹️</span>
-          <span class="btn-text">หยุดระบบ</span>
-        </button>
-        <button 
-          @click="controlService('restart')" 
-          class="control-btn btn-restart"
-          :disabled="loading"
-          data-tooltip="รีสตาร์ทบริการ OCR — หยุดแล้วเริ่มบริการใหม่เพื่อแก้ปัญหาเบื้องต้น"
-          title="รีสตาร์ทบริการ OCR">
-          <span class="btn-icon">🔄</span>
-          <span class="btn-text">รีสตาร์ท</span>
-        </button>
-        <button 
-          @click="rebootPi" 
-          class="control-btn btn-reboot"
-          :disabled="loading"
-          data-tooltip="รีบูท Raspberry Pi — รีสตาร์ทเครื่องทั้งระบบ (ใช้ในกรณีที่ระบบไม่ตอบสนอง)"
-          title="รีบูท Raspberry Pi">
-          <span class="btn-icon">⚡</span>
-          <span class="btn-text">รีบูท Pi</span>
-        </button>
-      </div>
-    </div>
 
     <!-- Speak Section -->
     <div class="speak-section">
@@ -198,6 +158,48 @@ import { WS_URL } from '../config.js';
 const { confirm: showConfirm } = useDialog();
 
 let ws = null; // WebSocket instance
+// Uptime local tracking (compute seconds on frontend when backend doesn't provide seconds)
+const uptimeBaseSeconds = ref(null); // base seconds parsed from last message
+const uptimeLastReceivedAt = ref(null);
+const uptimeDisplay = ref('');
+
+function parseUptimeToSeconds(uptimeStr) {
+  if (!uptimeStr) return null;
+  // examples: "16 hours, 37 minutes", "1 day, 3 hours, 12 minutes"
+  const parts = uptimeStr.split(',').map(p => p.trim().toLowerCase());
+  let seconds = 0;
+  parts.forEach(part => {
+    const hMatch = part.match(/(\d+)\s*hour/);
+    const mMatch = part.match(/(\d+)\s*minute/);
+    const dMatch = part.match(/(\d+)\s*day/);
+    const sMatch = part.match(/(\d+)\s*second/);
+    if (dMatch) seconds += parseInt(dMatch[1], 10) * 86400;
+    if (hMatch) seconds += parseInt(hMatch[1], 10) * 3600;
+    if (mMatch) seconds += parseInt(mMatch[1], 10) * 60;
+    if (sMatch) seconds += parseInt(sMatch[1], 10);
+  });
+  return seconds || null;
+}
+
+function formatSecondsToThai(sec) {
+  if (sec == null) return '';
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  const parts = [];
+  if (h) parts.push(`${h} ชั่วโมง`);
+  if (m) parts.push(`${m} นาที`);
+  if (s || parts.length === 0) parts.push(`${s} วินาที`);
+  return parts.join(' ');
+}
+
+function updateUptimeDisplay() {
+  if (uptimeBaseSeconds.value === null || uptimeLastReceivedAt.value === null) return;
+  const elapsed = Math.floor((Date.now() - uptimeLastReceivedAt.value) / 1000);
+  const total = uptimeBaseSeconds.value + elapsed;
+  uptimeDisplay.value = formatSecondsToThai(total);
+}
+
 function connectWebSocket() {
   if (ws) {
     ws.close();
@@ -205,6 +207,7 @@ function connectWebSocket() {
   ws = new WebSocket(WS_URL);
   ws.onopen = () => {
     console.log('[WebSocket] Connected to server (PiControl)');
+    wsConnected.value = true;
   };
   ws.onmessage = (event) => {
     try {
@@ -214,11 +217,31 @@ function connectWebSocket() {
         if (message.data && message.data.success) {
           piInfo.value = {
             uptime: message.data.uptime,
+            uptimeThai: message.data.uptimeThai,
+            uptimeSeconds: message.data.uptimeSeconds,
             cpuTemp: message.data.cpuTemp,
             memoryDisplay: message.data.memoryDisplay,
             memoryUsage: message.data.memoryUsage
           };
           serviceStatus.value = { status: message.data.status, isRunning: message.data.isRunning };
+
+          // If uptimeSeconds provided by backend, use it; otherwise parse from uptime string
+          if (message.data.uptimeSeconds && message.data.uptimeSeconds > 0) {
+            uptimeBaseSeconds.value = message.data.uptimeSeconds;
+            uptimeLastReceivedAt.value = Date.now();
+          } else {
+            const parsed = parseUptimeToSeconds(message.data.uptime || '');
+            if (parsed) {
+              uptimeBaseSeconds.value = parsed;
+              uptimeLastReceivedAt.value = Date.now();
+            }
+          }
+
+          // Update display immediately
+          updateUptimeDisplay();
+
+          // Also store full piInfo (already done) — keeps template consistent
+
         } else {
           // On error broadcasts, clear or set error
           console.warn('[WebSocket] pi-info error:', message.data && message.data.error);
@@ -230,11 +253,14 @@ function connectWebSocket() {
   };
   ws.onclose = () => {
     console.log('[WebSocket] Disconnected (PiControl), reconnecting in 3s...');
+    wsConnected.value = false;
     setTimeout(connectWebSocket, 3000);
   };
-  ws.onerror = (err) => console.error('[WebSocket] Error (PiControl):', err);
+  ws.onerror = (err) => {
+    console.error('[WebSocket] Error (PiControl):', err);
+    wsConnected.value = false;
+  };
 }
-
 const loading = ref(false);
 const message = ref('');
 const messageType = ref('');
@@ -247,6 +273,9 @@ const autoScroll = ref(true);
 const logRefreshInterval = ref(null);
 const pauseRefresh = ref(false);
 const volume = ref(80);
+
+let uptimeTicker = null; // interval id for uptime updates
+const wsConnected = ref(false);
 
 const showMessage = (text, type = 'success') => {
   message.value = text;
@@ -265,6 +294,21 @@ const refreshInfo = async () => {
     ]);
     piInfo.value = info;
     serviceStatus.value = status;
+
+    // Update uptime display immediately from API response
+    if (info) {
+      if (info.uptimeSeconds && info.uptimeSeconds > 0) {
+        uptimeBaseSeconds.value = info.uptimeSeconds;
+        uptimeLastReceivedAt.value = Date.now();
+      } else if (info.uptime) {
+        const parsed = parseUptimeToSeconds(info.uptime);
+        if (parsed) {
+          uptimeBaseSeconds.value = parsed;
+          uptimeLastReceivedAt.value = Date.now();
+        }
+      }
+      updateUptimeDisplay();
+    }
   } catch (err) {
     console.error('Error refreshing info:', err);
     showMessage('ไม่สามารถเชื่อมต่อกับ Pi ได้: ' + err.message, 'error');
@@ -418,12 +462,25 @@ onMounted(() => {
   refreshLogs();
   startAutoRefresh();
   loadVolume();
+
+  // Start uptime ticker (update every second)
+  uptimeTicker = setInterval(updateUptimeDisplay, 1000);
+
+  // Connect WebSocket
+  connectWebSocket();
 });
 
-
-onMounted(() => {
-  refreshInfo();
+onUnmounted(() => {
+  if (ws) {
+    ws.close();
+    ws = null;
+  }
+  if (uptimeTicker) {
+    clearInterval(uptimeTicker);
+    uptimeTicker = null;
+  }
 });
+
 </script>
 
 <style scoped>
@@ -611,74 +668,7 @@ onMounted(() => {
   font-size: 1.3rem;
 }
 
-.button-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
-}
-
-.control-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 24px 20px;
-  border: none;
-  border-radius: 16px;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-weight: 500;
-}
-
-.control-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-icon {
-  font-size: 2rem;
-  margin-bottom: 8px;
-}
-
-.btn-text {
-  font-size: 1rem;
-}
-
-.btn-start {
-  background: #d1f2d1;
-  color: #1a7a1a;
-}
-
-.btn-start:hover:not(:disabled) {
-  background: #b8e8b8;
-}
-
-.btn-stop {
-  background: #ffd6d6;
-  color: #c41c1c;
-}
-
-.btn-stop:hover:not(:disabled) {
-  background: #ffc0c0;
-}
-
-.btn-restart {
-  background: #fff3d1;
-  color: #996600;
-}
-
-.btn-restart:hover:not(:disabled) {
-  background: #ffe8a8;
-}
-
-.btn-reboot {
-  background: #e8d5f5;
-  color: #6b2d9b;
-}
-
-.btn-reboot:hover:not(:disabled) {
-  background: #dcc0f0;
-}
+/* Control buttons were removed per request. Styles kept minimal. */
 
 .speak-section {
   background: white;
