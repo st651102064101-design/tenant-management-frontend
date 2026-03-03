@@ -91,11 +91,8 @@
           <span class="chat-group-icon">👥</span>
           <div class="chat-group-info">
             <span class="chat-group-name">Parcel Noti</span>
-            <span class="chat-group-status">{{ telegramMessages.length }} ข้อความ</span>
+            <span class="chat-group-status">{{ telegramWarning || `${telegramMessages.length} ข้อความ` }}</span>
           </div>
-          <button class="chat-refresh-btn" @click="loadTelegramMessages(true)" :disabled="telegramChatLoading" title="รีเฟรช">
-            <span :class="{ 'spin-icon': telegramChatLoading }">🔄</span>
-          </button>
         </div>
         <div class="chat-messages-area" ref="chatMessagesArea">
           <div v-if="telegramChatLoading && telegramMessages.length === 0" class="chat-loading">
@@ -110,10 +107,11 @@
               v-for="msg in telegramMessages"
               :key="msg.id"
               class="chat-bubble-wrap"
-              :class="{ 'chat-bubble-bot': msg.from.isBot, 'chat-bubble-user': !msg.from.isBot }"
+              :class="isOutgoingMessage(msg) ? 'chat-bubble-outgoing' : 'chat-bubble-incoming'"
             >
+              <div v-if="!isOutgoingMessage(msg)" class="chat-avatar">{{ getSenderInitial(msg.from?.name) }}</div>
               <div class="chat-bubble">
-                <span v-if="!msg.from.isBot" class="chat-sender">{{ msg.from.name }}</span>
+                <span v-if="!isOutgoingMessage(msg)" class="chat-sender">{{ msg.from?.name || 'Unknown' }}</span>
                 <span v-if="msg.media" class="chat-attachment">{{ getMediaLabel(msg.media) }}</span>
 
                 <img
@@ -660,6 +658,8 @@ const telegramChatLoading = ref(false);
 const chatInput = ref('');
 const chatSending = ref(false);
 const chatMessagesArea = ref(null);
+const telegramWarning = ref('');
+const selfUserName = ref(localStorage.getItem('telegram_self_name') || '');
 let chatPollInterval = null;
 
 let uptimeTicker = null; // interval id for uptime updates
@@ -918,6 +918,22 @@ const getMediaLabel = (media) => {
   return `📦 ${media.kind}`;
 };
 
+const normalizeName = (value) => String(value || '').trim().toLowerCase();
+
+const isOutgoingMessage = (msg) => {
+  if (msg?.isOutgoing) return true;
+  if (!msg?.from || msg.from.isBot) return false;
+  if (!selfUserName.value) return false;
+  return normalizeName(msg.from.name) === normalizeName(selfUserName.value)
+    || normalizeName(msg.from.username) === normalizeName(selfUserName.value);
+};
+
+const getSenderInitial = (name) => {
+  const cleaned = String(name || '').trim();
+  if (!cleaned) return 'U';
+  return cleaned.charAt(0).toUpperCase();
+};
+
 const scrollChatToBottom = () => {
   nextTick(() => {
     if (chatMessagesArea.value) {
@@ -931,6 +947,7 @@ const loadTelegramMessages = async (force = false) => {
     telegramChatLoading.value = true;
     const result = await piAPI.getTelegramMessages(force);
     if (result.success) {
+      telegramWarning.value = result.warningMessage || '';
       const prevLen = telegramMessages.value.length;
       telegramMessages.value = result.messages || [];
       if (force && result.warningMessage) {
@@ -952,6 +969,25 @@ const sendChatMessage = async () => {
   if (!text) return;
   chatSending.value = true;
   try {
+    if (!selfUserName.value) {
+      selfUserName.value = 'You';
+      localStorage.setItem('telegram_self_name', selfUserName.value);
+    }
+
+    telegramMessages.value.push({
+      id: `local-${Date.now()}`,
+      from: { name: selfUserName.value, username: '', isBot: false },
+      text,
+      date: Math.floor(Date.now() / 1000),
+      media: null,
+      location: null,
+      venue: null,
+      contact: null,
+      poll: null,
+      isOutgoing: true,
+    });
+    scrollChatToBottom();
+
     await piAPI.sendTelegramMessage(text);
     chatInput.value = '';
     // Refresh messages to show the sent message
@@ -1573,7 +1609,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   max-height: 520px;
-  background: #e5ddd5;
+  background: #15192a;
 }
 
 .chat-phone-header {
@@ -1581,7 +1617,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 10px;
   padding: 12px 16px;
-  background: #229ed9;
+  background: linear-gradient(180deg, #2c3149 0%, #24283c 100%);
   color: #fff;
   flex-shrink: 0;
 }
@@ -1611,6 +1647,7 @@ onUnmounted(() => {
 .chat-group-status {
   font-size: 0.75rem;
   opacity: 0.85;
+  color: #b9bfd6;
 }
 
 .chat-refresh-btn {
@@ -1656,14 +1693,14 @@ onUnmounted(() => {
   gap: 6px;
   min-height: 200px;
   max-height: 380px;
-  background: #e5ddd5 url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23c5bfb0' fill-opacity='0.15'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  background: #111426 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Cg fill='none' stroke='%23353b5d' stroke-opacity='.3'%3E%3Ccircle cx='12' cy='12' r='4'/%3E%3Ccircle cx='60' cy='24' r='5'/%3E%3Cpath d='M24 56c8-6 16-6 24 0'/%3E%3Cpath d='M8 44h10'/%3E%3Cpath d='M66 56h8'/%3E%3C/g%3E%3C/svg%3E");
 }
 
 .chat-loading,
 .chat-empty {
   text-align: center;
   padding: 40px 16px;
-  color: #8e8e93;
+  color: #aeb4cb;
 }
 
 .chat-empty-hint {
@@ -1674,15 +1711,30 @@ onUnmounted(() => {
 
 .chat-bubble-wrap {
   display: flex;
-  flex-direction: column;
-}
-
-.chat-bubble-bot {
   align-items: flex-end;
+  gap: 8px;
 }
 
-.chat-bubble-user {
-  align-items: flex-start;
+.chat-bubble-incoming {
+  justify-content: flex-start;
+}
+
+.chat-bubble-outgoing {
+  justify-content: flex-end;
+}
+
+.chat-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #5d76ff;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .chat-bubble {
@@ -1694,28 +1746,30 @@ onUnmounted(() => {
   box-shadow: 0 1px 1px rgba(0,0,0,0.08);
 }
 
-.chat-bubble-bot .chat-bubble {
-  background: #dcf8c6;
-  border-bottom-right-radius: 4px;
+.chat-bubble-incoming .chat-bubble {
+  background: #2b2340;
+  border-bottom-left-radius: 4px;
+  color: #f3f0ff;
 }
 
-.chat-bubble-user .chat-bubble {
-  background: #ffffff;
-  border-bottom-left-radius: 4px;
+.chat-bubble-outgoing .chat-bubble {
+  background: #3c63ff;
+  border-bottom-right-radius: 4px;
+  color: #fff;
 }
 
 .chat-sender {
   display: block;
   font-size: 0.75rem;
   font-weight: 600;
-  color: #075e54;
+  color: #d7c9ff;
   margin-bottom: 2px;
 }
 
 .chat-attachment {
   display: inline-block;
   font-size: 0.8rem;
-  color: #6b6b70;
+  color: #d8d7df;
   margin-bottom: 2px;
 }
 
@@ -1763,7 +1817,7 @@ onUnmounted(() => {
   margin: 0;
   font-size: 0.9rem;
   line-height: 1.4;
-  color: #1d1d1f;
+  color: inherit;
   white-space: pre-wrap;
 }
 
@@ -1771,7 +1825,7 @@ onUnmounted(() => {
   display: block;
   text-align: right;
   font-size: 0.68rem;
-  color: #8e8e93;
+  color: rgba(255, 255, 255, 0.72);
   margin-top: 2px;
 }
 
