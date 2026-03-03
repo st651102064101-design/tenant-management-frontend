@@ -65,6 +65,15 @@
         <button @click="quickSpeak('พร้อมถ่ายแล้ว')" class="quick-btn">พร้อมถ่ายแล้ว</button>
         <button @click="quickSpeak('ขอบคุณครับ')" class="quick-btn">ขอบคุณครับ</button>
       </div>
+      <div class="telegram-test-row">
+        <button
+          @click="testTelegramMessage"
+          class="btn-telegram-test"
+          :disabled="loading || telegramTesting"
+        >
+          {{ telegramTesting ? '⏳ กำลังส่ง...' : '📨 Test Telegram' }}
+        </button>
+      </div>
     </div>
 
     <!-- Volume Control Section -->
@@ -263,6 +272,22 @@
       </div>
 
       <div class="credential-upload">
+        <div class="credential-help-wrap">
+          <span class="credential-help-label">วิธีสร้าง Service Account / Key</span>
+          <span class="credential-help-trigger" tabindex="0" aria-label="วิธีสร้าง Service Account และ JSON Key">?</span>
+          <div class="credential-help-popover">
+            <p><strong>ขั้นตอนสร้าง (Tenant Manager)</strong></p>
+            <ol>
+              <li>Service Accounts → Create service account</li>
+              <li>ชื่อ: <strong>pi-ocr</strong> แล้วกด Create and continue</li>
+              <li>Role: เลือก Cloud Vision (ถ้าไม่เจอให้ข้าม)</li>
+              <li>Library → เปิด <strong>Cloud Vision API</strong></li>
+              <li>กลับไป Service Accounts → pi-ocr → Keys</li>
+              <li>Add Key → Create new key → JSON</li>
+              <li>Copy JSON ทั้งไฟล์มาวางในช่องด้านล่าง แล้วกดอัปเดต</li>
+            </ol>
+          </div>
+        </div>
         <p class="credential-hint">
           วาง JSON ของ Service Account Key ใหม่ที่นี่ (ดาวน์โหลดจาก
           <a href="https://console.cloud.google.com/iam-admin/serviceaccounts" target="_blank" rel="noopener">Google Cloud Console</a>
@@ -510,6 +535,7 @@ const credentialInfo = ref(null);
 const credentialError = ref('');
 const credentialJson = ref('');
 const credentialUploading = ref(false);
+const telegramTesting = ref(false);
 
 let uptimeTicker = null; // interval id for uptime updates
 let wifiScanInterval = null; // interval id for auto wifi scan
@@ -709,6 +735,19 @@ const speakOnPi = async () => {
 const quickSpeak = (text) => {
   speakText.value = text;
   speakOnPi();
+};
+
+const testTelegramMessage = async () => {
+  telegramTesting.value = true;
+  try {
+    await piAPI.testTelegram(`🧪 Test Telegram จากหน้าเว็บ Tenant Manager (${new Date().toLocaleString('th-TH')})`);
+    showMessage('ส่งข้อความทดสอบ Telegram สำเร็จ', 'success');
+    setTimeout(refreshLogs, 300);
+  } catch (err) {
+    showMessage('ส่งข้อความทดสอบ Telegram ไม่สำเร็จ: ' + err.message, 'error');
+  } finally {
+    telegramTesting.value = false;
+  }
 };
 
 const loadVolume = async () => {
@@ -1238,6 +1277,31 @@ onUnmounted(() => {
 
 .quick-btn:hover {
   background: #e8e8ed;
+}
+
+.telegram-test-row {
+  margin-top: 14px;
+}
+
+.btn-telegram-test {
+  background: #229ed9;
+  color: #fff;
+  border: none;
+  padding: 10px 18px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.btn-telegram-test:hover:not(:disabled) {
+  background: #178bc0;
+}
+
+.btn-telegram-test:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Volume Control */
@@ -2080,6 +2144,64 @@ onUnmounted(() => {
 }
 .credential-upload {
   margin-top: 12px;
+}
+.credential-help-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  margin-bottom: 8px;
+}
+.credential-help-label {
+  font-size: 0.82rem;
+  color: #6e6e73;
+  font-weight: 600;
+}
+.credential-help-trigger {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  background: #007aff;
+  cursor: help;
+  user-select: none;
+}
+.credential-help-popover {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 8px);
+  width: min(420px, 88vw);
+  background: #1d1d1f;
+  color: #fff;
+  border-radius: 12px;
+  padding: 12px 14px;
+  box-shadow: 0 12px 30px rgba(0,0,0,0.25);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(6px);
+  transition: all 0.18s ease;
+  z-index: 30;
+}
+.credential-help-popover p {
+  margin: 0 0 8px;
+  font-size: 0.82rem;
+}
+.credential-help-popover ol {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+.credential-help-wrap:hover .credential-help-popover,
+.credential-help-wrap:focus-within .credential-help-popover {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
 }
 .credential-hint {
   font-size: 0.82rem;
