@@ -67,6 +67,13 @@
       </div>
       <div class="telegram-test-row">
         <button
+          @click="captureAndSendTelegram"
+          class="btn-capture-telegram"
+          :disabled="loading || captureSending"
+        >
+          {{ captureSending ? '📸 กำลังถ่ายและ OCR...' : '📸 ถ่ายแล้วส่ง Telegram' }}
+        </button>
+        <button
           @click="testTelegramMessage"
           class="btn-telegram-test"
           :disabled="loading || telegramTesting"
@@ -536,6 +543,7 @@ const credentialError = ref('');
 const credentialJson = ref('');
 const credentialUploading = ref(false);
 const telegramTesting = ref(false);
+const captureSending = ref(false);
 
 let uptimeTicker = null; // interval id for uptime updates
 let wifiScanInterval = null; // interval id for auto wifi scan
@@ -747,6 +755,23 @@ const testTelegramMessage = async () => {
     showMessage('ส่งข้อความทดสอบ Telegram ไม่สำเร็จ: ' + err.message, 'error');
   } finally {
     telegramTesting.value = false;
+  }
+};
+
+const captureAndSendTelegram = async () => {
+  captureSending.value = true;
+  try {
+    const result = await piAPI.captureAndSendTelegram();
+    showMessage(result.message || 'ถ่ายภาพและส่ง Telegram สำเร็จ', 'success');
+    setTimeout(refreshLogs, 400);
+  } catch (err) {
+    const retryMessage = err.message?.includes('กดถ่ายใหม่')
+      ? err.message
+      : `OCR ไม่สำเร็จ กรุณากดถ่ายใหม่ (${err.message || 'Unknown error'})`;
+    showMessage(retryMessage, 'error');
+    await showAlert(retryMessage, 'ถ่ายไม่สำเร็จ');
+  } finally {
+    captureSending.value = false;
   }
 };
 
@@ -1281,6 +1306,30 @@ onUnmounted(() => {
 
 .telegram-test-row {
   margin-top: 14px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.btn-capture-telegram {
+  background: #34c759;
+  color: #fff;
+  border: none;
+  padding: 10px 18px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.btn-capture-telegram:hover:not(:disabled) {
+  background: #2ea94f;
+}
+
+.btn-capture-telegram:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .btn-telegram-test {
