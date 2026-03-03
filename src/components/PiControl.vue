@@ -114,9 +114,63 @@
             >
               <div class="chat-bubble">
                 <span v-if="!msg.from.isBot" class="chat-sender">{{ msg.from.name }}</span>
-                <span v-if="msg.hasPhoto" class="chat-attachment">📷 รูปภาพ</span>
-                <span v-if="msg.hasDocument" class="chat-attachment">📎 ไฟล์</span>
-                <p class="chat-text">{{ msg.text || (msg.hasPhoto ? '' : '(ไม่มีข้อความ)') }}</p>
+                <span v-if="msg.media" class="chat-attachment">{{ getMediaLabel(msg.media) }}</span>
+
+                <img
+                  v-if="msg.media && isImageMedia(msg.media)"
+                  :src="msg.media.url"
+                  class="chat-media-image"
+                  alt="telegram media"
+                  loading="lazy"
+                />
+
+                <video
+                  v-else-if="msg.media && isVideoMedia(msg.media)"
+                  :src="msg.media.url"
+                  class="chat-media-video"
+                  controls
+                  preload="metadata"
+                ></video>
+
+                <audio
+                  v-else-if="msg.media && isAudioMedia(msg.media)"
+                  :src="msg.media.url"
+                  class="chat-media-audio"
+                  controls
+                  preload="none"
+                ></audio>
+
+                <a
+                  v-else-if="msg.media && isDocumentMedia(msg.media)"
+                  :href="msg.media.url"
+                  target="_blank"
+                  rel="noopener"
+                  class="chat-file-link"
+                >
+                  📄 {{ msg.media.fileName || 'เปิดไฟล์เอกสาร' }}
+                </a>
+
+                <div v-if="msg.location" class="chat-meta-box">
+                  📍 {{ msg.location.latitude }}, {{ msg.location.longitude }}
+                </div>
+
+                <div v-if="msg.venue" class="chat-meta-box">
+                  📌 {{ msg.venue.title }}<br />
+                  <small>{{ msg.venue.address }}</small>
+                </div>
+
+                <div v-if="msg.contact" class="chat-meta-box">
+                  👤 {{ [msg.contact.firstName, msg.contact.lastName].filter(Boolean).join(' ') || 'Contact' }}
+                  <br />
+                  <small>{{ msg.contact.phoneNumber }}</small>
+                </div>
+
+                <div v-if="msg.poll" class="chat-meta-box">
+                  🗳️ {{ msg.poll.question }}
+                </div>
+
+                <p v-if="msg.text" class="chat-text">{{ msg.text }}</p>
+                <p v-else-if="!msg.media && !msg.location && !msg.venue && !msg.contact && !msg.poll" class="chat-text">(ไม่มีข้อความ)</p>
                 <span class="chat-time">{{ formatChatTime(msg.date) }}</span>
               </div>
             </div>
@@ -828,7 +882,7 @@ const captureAndSendTelegram = async () => {
     showMessage(result.message || 'ถ่ายภาพและส่ง Telegram สำเร็จ', 'success');
     setTimeout(refreshLogs, 400);
     // Refresh chat after capture sends a telegram message
-    setTimeout(loadTelegramMessages, 1500);
+    setTimeout(() => loadTelegramMessages(true), 1500);
   } catch (err) {
     const retryMessage = err.message?.includes('กดถ่ายใหม่')
       ? err.message
@@ -847,6 +901,23 @@ const formatChatTime = (unixTimestamp) => {
   return d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
 };
 
+const isImageMedia = (media) => ['photo', 'sticker', 'animation'].includes(media?.kind);
+const isVideoMedia = (media) => ['video'].includes(media?.kind);
+const isAudioMedia = (media) => ['audio', 'voice'].includes(media?.kind);
+const isDocumentMedia = (media) => ['document'].includes(media?.kind);
+
+const getMediaLabel = (media) => {
+  if (!media?.kind) return '';
+  if (media.kind === 'photo') return '📷 รูปภาพ';
+  if (media.kind === 'video') return '🎬 วิดีโอ';
+  if (media.kind === 'animation') return '🎞️ GIF/Animation';
+  if (media.kind === 'sticker') return `🧩 สติ๊กเกอร์ ${media.emoji || ''}`.trim();
+  if (media.kind === 'voice') return '🎤 ข้อความเสียง';
+  if (media.kind === 'audio') return '🎵 เสียง';
+  if (media.kind === 'document') return '📎 เอกสาร';
+  return `📦 ${media.kind}`;
+};
+
 const scrollChatToBottom = () => {
   nextTick(() => {
     if (chatMessagesArea.value) {
@@ -862,6 +933,9 @@ const loadTelegramMessages = async (force = false) => {
     if (result.success) {
       const prevLen = telegramMessages.value.length;
       telegramMessages.value = result.messages || [];
+      if (force && result.warningMessage) {
+        showMessage(`⚠️ ${result.warningMessage}`, 'error');
+      }
       if (force || telegramMessages.value.length > prevLen) {
         scrollChatToBottom();
       }
@@ -1643,6 +1717,46 @@ onUnmounted(() => {
   font-size: 0.8rem;
   color: #6b6b70;
   margin-bottom: 2px;
+}
+
+.chat-media-image,
+.chat-media-video {
+  width: 100%;
+  max-width: 260px;
+  border-radius: 10px;
+  margin: 6px 0;
+  display: block;
+  background: #f2f2f7;
+}
+
+.chat-media-audio {
+  width: 100%;
+  max-width: 260px;
+  margin: 6px 0;
+}
+
+.chat-file-link {
+  display: inline-block;
+  margin: 6px 0;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: #f2f2f7;
+  color: #1d1d1f;
+  text-decoration: none;
+  font-size: 0.84rem;
+}
+
+.chat-file-link:hover {
+  text-decoration: underline;
+}
+
+.chat-meta-box {
+  margin: 6px 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.05);
+  font-size: 0.82rem;
+  line-height: 1.35;
 }
 
 .chat-text {
