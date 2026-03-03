@@ -16,7 +16,8 @@ async function apiCall(endpoint, options = {}) {
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
-    throw new Error(error.error || `API Error: ${response.status}`);
+    const detail = error.details ? ` - ${error.details}` : '';
+    throw new Error((error.error || `API Error: ${response.status}`) + detail);
   }
 
   return response.json();
@@ -53,6 +54,10 @@ export const reportAPI = {
 export const piAPI = {
   getStatus: () => apiCall('/api/pi/status'),
   getInfo: () => apiCall('/api/pi/info'),
+  getWifiStatus: () => apiCall('/api/pi/wifi'),
+  scanWifi: () => apiCall('/api/pi/wifi/scan'),
+  setWifiConfig: (ssid, password) => apiCall('/api/pi/wifi', { method: 'POST', body: JSON.stringify({ ssid, password }) }),
+  switchPreferredNetwork: (target) => apiCall('/api/pi/network/prefer', { method: 'POST', body: JSON.stringify({ target }) }),
   getLogs: () => apiCall('/api/pi/logs'),
   clearLogs: () => apiCall('/api/pi/logs', { method: 'DELETE' }),
   control: (action) => apiCall('/api/pi/control', { method: 'POST', body: JSON.stringify({ action }) }),

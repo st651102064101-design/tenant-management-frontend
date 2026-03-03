@@ -92,6 +92,139 @@
       </div>
     </div>
 
+    <!-- Wi-Fi Config Section -->
+    <div class="wifi-section">
+      <h2>📶 ตั้งค่า Wi-Fi (Raspberry Pi)</h2>
+      <p class="wifi-current">เครือข่ายปัจจุบัน: <strong>{{ currentNetworkStatus }}</strong></p>
+      <p class="wifi-current" v-if="networkState.wifiConnected && networkState.lanConnected">
+        สถานะ: เชื่อมทั้ง LAN และ Wi‑Fi
+      </p>
+
+      <!-- Wi-Fi Scanner -->
+      <div class="wifi-scanner">
+        <div class="wifi-scanner-header">
+          <h3>เครือข่ายที่พบ <span v-if="scanning" class="scan-spinner-inline"></span></h3>
+        </div>
+
+        <div v-if="scanning && wifiNetworks.length === 0" class="wifi-scanning-indicator">
+          <div class="scan-spinner"></div>
+          <span>กำลังค้นหาเครือข่าย Wi-Fi...</span>
+        </div>
+
+        <div v-if="wifiNetworks.length > 0" class="wifi-list">
+          <div
+            v-for="network in wifiNetworks"
+            :key="network.bssid || network.ssid"
+            class="wifi-item"
+            :class="{ 'wifi-item-active': network.inUse }"
+            @click="onNetworkClick(network)"
+          >
+            <div class="wifi-item-left">
+              <div class="wifi-signal-bars" :title="`สัญญาณ: ${network.signal}%`">
+                <div class="signal-bar" :class="{ active: network.signal >= 10 }"></div>
+                <div class="signal-bar" :class="{ active: network.signal >= 30 }"></div>
+                <div class="signal-bar" :class="{ active: network.signal >= 55 }"></div>
+                <div class="signal-bar" :class="{ active: network.signal >= 80 }"></div>
+              </div>
+              <div class="wifi-item-info">
+                <span class="wifi-ssid">{{ network.ssid }}</span>
+                <span class="wifi-detail">{{ network.security !== 'Open' ? '🔒' : '🔓' }} {{ network.security }} · {{ network.signal }}%</span>
+              </div>
+            </div>
+            <div class="wifi-item-right">
+              <span v-if="network.inUse" class="wifi-connected-badge">✓ เชื่อมต่ออยู่</span>
+              <span v-else class="wifi-connect-hint">แตะเพื่อเชื่อมต่อ</span>
+            </div>
+          </div>
+        </div>
+
+        <div v-else-if="scanAttempted" class="wifi-no-results">
+          <p>ไม่พบเครือข่าย Wi-Fi</p>
+          <p class="wifi-no-hint">ลองกดสแกนอีกครั้ง</p>
+        </div>
+      </div>
+
+      <!-- Connect Dialog (shown when clicking a network) -->
+      <div v-if="connectDialog.show" class="wifi-connect-overlay" @click.self="closeConnectDialog">
+        <div class="wifi-connect-dialog">
+          <div class="dialog-header">
+            <h3>เชื่อมต่อ "{{ connectDialog.ssid }}"</h3>
+            <button class="dialog-close" @click="closeConnectDialog">✕</button>
+          </div>
+          <div class="dialog-body">
+            <div class="dialog-network-info">
+              <span>🔒 {{ connectDialog.security }}</span>
+              <span>📶 สัญญาณ {{ connectDialog.signal }}%</span>
+            </div>
+            <div v-if="connectDialog.security !== 'Open'" class="dialog-password-field">
+              <label>รหัสผ่าน Wi-Fi</label>
+              <div class="password-input-wrap">
+                <input
+                  ref="connectPasswordInput"
+                  v-model="connectDialog.password"
+                  :type="connectDialog.showPassword ? 'text' : 'password'"
+                  placeholder="ใส่รหัสผ่าน..."
+                  @keyup.enter="connectToNetwork"
+                  :disabled="connectDialog.connecting"
+                />
+                <button class="toggle-password" @click="connectDialog.showPassword = !connectDialog.showPassword">
+                  {{ connectDialog.showPassword ? '🙈' : '👁️' }}
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="dialog-footer">
+            <button class="btn-dialog-cancel" @click="closeConnectDialog" :disabled="connectDialog.connecting">ยกเลิก</button>
+            <button
+              class="btn-dialog-connect"
+              @click="connectToNetwork"
+              :disabled="connectDialog.connecting || (connectDialog.security !== 'Open' && !connectDialog.password.trim())"
+            >
+              {{ connectDialog.connecting ? '🔄 กำลังเชื่อมต่อ...' : '📶 เชื่อมต่อ' }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Manual Wi-Fi form (hidden behind toggle) -->
+      <div class="wifi-manual-toggle">
+        <button class="btn-manual-toggle" @click="showManualWifi = !showManualWifi">
+          {{ showManualWifi ? '▲ ซ่อนฟอร์มกรอกเอง' : '▼ กรอก SSID เอง (เครือข่ายที่ซ่อน)' }}
+        </button>
+      </div>
+      <div v-if="showManualWifi" class="wifi-form">
+        <input
+          v-model="wifiSsid"
+          type="text"
+          placeholder="ชื่อ Wi-Fi (SSID)"
+          :disabled="loading"
+        />
+        <input
+          v-model="wifiPassword"
+          type="password"
+          placeholder="รหัสผ่าน Wi-Fi"
+          :disabled="loading"
+        />
+        <button
+          @click="applyWifiConfig"
+          class="btn-wifi"
+          :disabled="loading || !wifiSsid.trim() || !wifiPassword.trim() || !wsConnected || !serviceStatus.isRunning"
+        >
+          💾 บันทึก Wi-Fi
+        </button>
+      </div>
+      <p class="wifi-hint" v-if="!wsConnected || !serviceStatus.isRunning">
+        ต้องอยู่ในสถานะ "ทำงานอยู่" และ "WS: เชื่อมต่อ" ก่อนจึงจะเปลี่ยน Wi-Fi ได้
+      </p>
+      <div class="network-switch" v-if="networkState.wifiConnected && networkState.lanConnected">
+        <label for="prefer-network">เลือกเส้นทางใช้งาน:</label>
+        <select id="prefer-network" v-model="preferredTarget" :disabled="isSwitchingNetwork || !wsConnected || !serviceStatus.isRunning" @change="switchPreferredNetwork">
+          <option value="wifi">ใช้ Wi‑Fi ({{ networkState.wifiName || 'wlan0' }})</option>
+          <option value="lan">ใช้ LAN ({{ networkState.lanName || 'eth0' }})</option>
+        </select>
+      </div>
+    </div>
+
     <!-- Logs Section -->
     <div class="logs-section">
       <div class="logs-header">
@@ -150,12 +283,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import { piAPI } from '../api.js';
 import { useDialog } from '../composables/useDialog.js';
 import { WS_URL } from '../config.js';
 
-const { confirm: showConfirm } = useDialog();
+const { confirm: showConfirm, alert: showAlert } = useDialog();
+const route = useRoute();
 
 let ws = null; // WebSocket instance
 // Uptime local tracking (compute seconds on frontend when backend doesn't provide seconds)
@@ -273,8 +408,35 @@ const autoScroll = ref(true);
 const logRefreshInterval = ref(null);
 const pauseRefresh = ref(false);
 const volume = ref(80);
+const wifiSsid = ref('');
+const wifiPassword = ref('');
+const currentNetworkStatus = ref('ไม่พบการเชื่อมต่อ');
+const preferredTarget = ref('wifi');
+const networkState = ref({
+  wifiConnected: false,
+  lanConnected: false,
+  connectionType: 'none',
+  wifiName: '',
+  lanName: '',
+});
+const showManualWifi = ref(false);
+const scanning = ref(false);
+const scanAttempted = ref(false);
+const wifiNetworks = ref([]);
+const connectPasswordInput = ref(null);
+const isSwitchingNetwork = ref(false);
+const connectDialog = ref({
+  show: false,
+  ssid: '',
+  security: '',
+  signal: 0,
+  password: '',
+  showPassword: false,
+  connecting: false,
+});
 
 let uptimeTicker = null; // interval id for uptime updates
+let wifiScanInterval = null; // interval id for auto wifi scan
 const wsConnected = ref(false);
 
 const showMessage = (text, type = 'success') => {
@@ -448,6 +610,179 @@ const updateVolume = async (event) => {
   }
 };
 
+const loadWifiStatus = async () => {
+  try {
+    const response = await piAPI.getWifiStatus();
+    networkState.value = {
+      wifiConnected: Boolean(response.wifiConnected),
+      lanConnected: Boolean(response.lanConnected),
+      connectionType: response.connectionType || 'none',
+      wifiName: response.wifiName || response.ssid || '',
+      lanName: response.lanName || '',
+    };
+
+    if (response.connectionType === 'lan' || (response.lanConnected && !response.wifiConnected)) {
+      currentNetworkStatus.value = 'ต่อ LAN อยู่';
+      preferredTarget.value = 'lan';
+      return;
+    }
+    if (response.connectionType === 'wifi' || response.wifiConnected) {
+      const wifiName = response.wifiName || response.ssid || response.connectionName || 'Wi-Fi';
+      currentNetworkStatus.value = `Wi-Fi: ${wifiName}`;
+      preferredTarget.value = 'wifi';
+      return;
+    }
+    currentNetworkStatus.value = 'ไม่พบการเชื่อมต่อ';
+  } catch (err) {
+    console.error('Error loading Wi-Fi status:', err);
+    currentNetworkStatus.value = 'ไม่พบการเชื่อมต่อ';
+  }
+};
+
+const applyPreferredTargetToUI = (target) => {
+  networkState.value = {
+    ...networkState.value,
+    connectionType: target,
+  };
+
+  if (target === 'lan') {
+    currentNetworkStatus.value = 'ต่อ LAN อยู่';
+    preferredTarget.value = 'lan';
+  } else {
+    const wifiName = networkState.value.wifiName || 'Wi-Fi';
+    currentNetworkStatus.value = `Wi-Fi: ${wifiName}`;
+    preferredTarget.value = 'wifi';
+  }
+
+  wifiNetworks.value = wifiNetworks.value.map((network) => {
+    const isActiveWifi = target === 'wifi' && network.ssid === networkState.value.wifiName;
+    return {
+      ...network,
+      inUse: isActiveWifi,
+    };
+  });
+};
+
+const applyWifiConfig = async () => {
+  if (!wifiSsid.value.trim() || !wifiPassword.value.trim()) return;
+
+  const confirmed = await showConfirm(
+    `ยืนยันเปลี่ยน Wi-Fi เป็น "${wifiSsid.value}"?\nการเชื่อมต่ออาจหลุดชั่วคราว`,
+    'ยืนยันการเปลี่ยน Wi-Fi'
+  );
+  if (!confirmed) return;
+
+  loading.value = true;
+  try {
+    const result = await piAPI.setWifiConfig(wifiSsid.value.trim(), wifiPassword.value);
+    const connectedSsid = result.ssid || wifiSsid.value.trim();
+    showMessage(`เชื่อม Wi‑Fi สำเร็จ: ${connectedSsid}`, 'success');
+    await showAlert(`เชื่อม Wi‑Fi สำเร็จ\nเครือข่าย: ${connectedSsid}`, 'สำเร็จ');
+    currentNetworkStatus.value = `Wi-Fi: ${connectedSsid}`;
+    wifiPassword.value = '';
+    setTimeout(loadWifiStatus, 1500);
+  } catch (err) {
+    const errorMessage = 'ไม่สามารถเปลี่ยน Wi-Fi ได้: ' + err.message;
+    showMessage(errorMessage, 'error');
+    await showAlert(errorMessage, 'เชื่อม Wi‑Fi ไม่สำเร็จ');
+  } finally {
+    loading.value = false;
+  }
+};
+
+const switchPreferredNetwork = async () => {
+  if (isSwitchingNetwork.value) return;
+
+  const previousTarget = networkState.value.connectionType === 'wifi' ? 'wifi' : 'lan';
+  const targetText = preferredTarget.value === 'wifi' ? 'Wi‑Fi' : 'LAN';
+
+  isSwitchingNetwork.value = true;
+  loading.value = true;
+  try {
+    await piAPI.switchPreferredNetwork(preferredTarget.value);
+    applyPreferredTargetToUI(preferredTarget.value);
+    showMessage(`สลับเส้นทางเป็น ${targetText} สำเร็จ`, 'success');
+
+    // Re-sync from backend without forcing page refresh
+    setTimeout(() => {
+      loadWifiStatus();
+      scanWifiNetworks();
+    }, 300);
+  } catch (err) {
+    preferredTarget.value = previousTarget;
+    applyPreferredTargetToUI(previousTarget);
+    showMessage('ไม่สามารถสลับเส้นทางได้: ' + err.message, 'error');
+  } finally {
+    isSwitchingNetwork.value = false;
+    loading.value = false;
+  }
+};
+
+// ── Wi-Fi Scanner ──────────────────────────────────────────────
+const scanWifiNetworks = async () => {
+  if (route.path !== '/pi') return;
+
+  scanning.value = true;
+  scanAttempted.value = false;
+  try {
+    const result = await piAPI.scanWifi();
+    wifiNetworks.value = result.networks || [];
+    scanAttempted.value = true;
+  } catch (err) {
+    showMessage('สแกน Wi-Fi ไม่สำเร็จ: ' + err.message, 'error');
+    scanAttempted.value = true;
+  } finally {
+    scanning.value = false;
+  }
+};
+
+const onNetworkClick = (network) => {
+  if (network.inUse) return; // already connected
+  connectDialog.value = {
+    show: true,
+    ssid: network.ssid,
+    security: network.security,
+    signal: network.signal,
+    password: '',
+    showPassword: false,
+    connecting: false,
+  };
+  nextTick(() => {
+    if (connectPasswordInput.value) connectPasswordInput.value.focus();
+  });
+};
+
+const closeConnectDialog = () => {
+  if (connectDialog.value.connecting) return;
+  connectDialog.value.show = false;
+};
+
+const connectToNetwork = async () => {
+  const d = connectDialog.value;
+  if (d.connecting) return;
+  if (d.security !== 'Open' && !d.password.trim()) return;
+
+  d.connecting = true;
+  try {
+    const result = await piAPI.setWifiConfig(d.ssid, d.password || '');
+    const connectedSsid = result.ssid || d.ssid;
+    d.show = false;
+    showMessage(`เชื่อม Wi‑Fi สำเร็จ: ${connectedSsid}`, 'success');
+    await showAlert(`เชื่อม Wi‑Fi สำเร็จ\nเครือข่าย: ${connectedSsid}`, 'สำเร็จ');
+    // Refresh scan list & status
+    setTimeout(() => {
+      loadWifiStatus();
+      scanWifiNetworks();
+    }, 1500);
+  } catch (err) {
+    const errorMessage = 'เชื่อม Wi‑Fi ไม่สำเร็จ: ' + err.message;
+    showMessage(errorMessage, 'error');
+    await showAlert(errorMessage, 'เชื่อม Wi‑Fi ไม่สำเร็จ');
+  } finally {
+    d.connecting = false;
+  }
+};
+
 function formatMemoryTooltip(info) {
   if (!info || !info.memoryUsage) return '';
   const m = info.memoryUsage;
@@ -462,6 +797,33 @@ onMounted(() => {
   refreshLogs();
   startAutoRefresh();
   loadVolume();
+  loadWifiStatus();
+  if (route.path === '/pi') {
+    scanWifiNetworks();
+  }
+
+  // Auto-scan Wi-Fi every 5 seconds only on /pi
+  if (route.path === '/pi') {
+    wifiScanInterval = setInterval(scanWifiNetworks, 5000);
+  }
+
+  watch(
+    () => route.path,
+    (newPath) => {
+      if (newPath === '/pi') {
+        scanWifiNetworks();
+        if (!wifiScanInterval) {
+          wifiScanInterval = setInterval(scanWifiNetworks, 5000);
+        }
+        return;
+      }
+
+      if (wifiScanInterval) {
+        clearInterval(wifiScanInterval);
+        wifiScanInterval = null;
+      }
+    }
+  );
 
   // Start uptime ticker (update every second)
   uptimeTicker = setInterval(updateUptimeDisplay, 1000);
@@ -478,6 +840,10 @@ onUnmounted(() => {
   if (uptimeTicker) {
     clearInterval(uptimeTicker);
     uptimeTicker = null;
+  }
+  if (wifiScanInterval) {
+    clearInterval(wifiScanInterval);
+    wifiScanInterval = null;
   }
 });
 
@@ -837,6 +1203,452 @@ onUnmounted(() => {
   padding: 0 4px;
 }
 
+.wifi-section {
+  background: white;
+  border-radius: 18px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+}
+
+.wifi-section h2 {
+  margin-top: 0;
+  margin-bottom: 12px;
+  color: #1d1d1f;
+  font-size: 1.3rem;
+}
+
+.wifi-current {
+  margin: 0 0 12px;
+  color: #6b6b70;
+  font-size: 0.95rem;
+}
+
+.wifi-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.wifi-form input {
+  padding: 12px 14px;
+  border: 1px solid #d2d2d7;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  outline: none;
+}
+
+.wifi-form input:focus {
+  border-color: #007aff;
+}
+
+.btn-wifi {
+  background: #007aff;
+  color: white;
+  border: none;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn-wifi:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.wifi-hint {
+  margin-top: 10px;
+  color: #8a6d3b;
+  font-size: 0.9rem;
+}
+
+.network-switch {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.network-switch label {
+  color: #6b6b70;
+  font-size: 0.92rem;
+}
+
+.network-switch select {
+  padding: 10px 12px;
+  border: 1px solid #d2d2d7;
+  border-radius: 10px;
+  background: white;
+  color: #1d1d1f;
+  transition: opacity 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+}
+
+.network-switch select:disabled {
+  opacity: 0.45;
+  background: #f2f2f5;
+  color: #8e8e93;
+  cursor: not-allowed;
+}
+
+.btn-switch-network {
+  background: #34c759;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn-switch-network:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Wi-Fi Scanner ────────────────────────────── */
+.wifi-scanner {
+  margin-top: 16px;
+  margin-bottom: 16px;
+}
+
+.wifi-scanner-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.wifi-scanner-header h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: #1d1d1f;
+}
+
+.btn-scan {
+  background: #007aff;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 8px 16px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-scan:hover:not(:disabled) {
+  background: #0056b3;
+}
+
+.btn-scan:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.scan-spinner-inline {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #d2d2d7;
+  border-top-color: #007aff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  vertical-align: middle;
+  margin-left: 6px;
+}
+
+.wifi-scanning-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 32px;
+  color: #86868b;
+  font-size: 0.95rem;
+}
+
+.scan-spinner {
+  width: 22px;
+  height: 22px;
+  border: 3px solid #e0e0e0;
+  border-top-color: #007aff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.wifi-list {
+  border: 1px solid #e8e8ed;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.wifi-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+  border-bottom: 1px solid #f0f0f5;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.wifi-item:last-child {
+  border-bottom: none;
+}
+
+.wifi-item:hover {
+  background: #f5f5f7;
+}
+
+.wifi-item-active {
+  background: #e8f5e9;
+}
+
+.wifi-item-active:hover {
+  background: #d8efd9;
+  cursor: default;
+}
+
+.wifi-item-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.wifi-signal-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 20px;
+  width: 22px;
+}
+
+.signal-bar {
+  width: 4px;
+  border-radius: 1px;
+  background: #d2d2d7;
+  transition: background 0.2s;
+}
+
+.signal-bar:nth-child(1) { height: 5px; }
+.signal-bar:nth-child(2) { height: 9px; }
+.signal-bar:nth-child(3) { height: 14px; }
+.signal-bar:nth-child(4) { height: 20px; }
+
+.signal-bar.active { background: #007aff; }
+.wifi-item-active .signal-bar.active { background: #34c759; }
+
+.wifi-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wifi-ssid {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #1d1d1f;
+}
+
+.wifi-detail {
+  font-size: 0.8rem;
+  color: #86868b;
+}
+
+.wifi-item-right {
+  flex-shrink: 0;
+}
+
+.wifi-connected-badge {
+  color: #34c759;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.wifi-connect-hint {
+  color: #007aff;
+  font-size: 0.85rem;
+}
+
+.wifi-no-results {
+  text-align: center;
+  padding: 24px;
+  color: #86868b;
+}
+
+.wifi-no-hint {
+  font-size: 0.85rem;
+  color: #aaa;
+}
+
+/* Connect Dialog (overlay) */
+.wifi-connect-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.wifi-connect-dialog {
+  background: #fff;
+  border-radius: 18px;
+  width: 90%;
+  max-width: 420px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.2);
+  overflow: hidden;
+}
+
+.dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px 12px;
+}
+
+.dialog-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #1d1d1f;
+}
+
+.dialog-close {
+  background: #f5f5f7;
+  border: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b6b70;
+}
+
+.dialog-close:hover {
+  background: #e8e8ed;
+}
+
+.dialog-body {
+  padding: 0 24px 16px;
+}
+
+.dialog-network-info {
+  display: flex;
+  gap: 16px;
+  font-size: 0.9rem;
+  color: #6b6b70;
+  margin-bottom: 16px;
+}
+
+.dialog-password-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dialog-password-field label {
+  font-size: 0.9rem;
+  color: #6b6b70;
+}
+
+.password-input-wrap {
+  display: flex;
+  border: 1px solid #d2d2d7;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.password-input-wrap input {
+  flex: 1;
+  border: none;
+  padding: 12px 14px;
+  font-size: 1rem;
+  outline: none;
+}
+
+.toggle-password {
+  background: transparent;
+  border: none;
+  padding: 0 12px;
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+.dialog-footer {
+  display: flex;
+  gap: 10px;
+  padding: 0 24px 20px;
+  justify-content: flex-end;
+}
+
+.btn-dialog-cancel {
+  background: #f5f5f7;
+  color: #1d1d1f;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 20px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn-dialog-cancel:hover:not(:disabled) {
+  background: #e8e8ed;
+}
+
+.btn-dialog-connect {
+  background: #007aff;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 20px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn-dialog-connect:hover:not(:disabled) {
+  background: #0056b3;
+}
+
+.btn-dialog-connect:disabled,
+.btn-dialog-cancel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Manual Wi-Fi toggle */
+.wifi-manual-toggle {
+  margin-top: 12px;
+  margin-bottom: 8px;
+}
+
+.btn-manual-toggle {
+  background: none;
+  border: none;
+  color: #007aff;
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.btn-manual-toggle:hover {
+  text-decoration: underline;
+}
+
 .logs-section {
   margin-top: 24px;
   padding: 24px;
@@ -997,6 +1809,7 @@ onUnmounted(() => {
 
   .info-card,
   .control-section,
+  .wifi-section,
   .speak-section,
   .logs-section {
     padding: 16px;
@@ -1052,6 +1865,10 @@ onUnmounted(() => {
   .speak-form {
     flex-direction: column;
     gap: 12px;
+  }
+
+  .wifi-form {
+    grid-template-columns: 1fr;
   }
 
   .speak-input {

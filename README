@@ -1,0 +1,9 @@
+ลองทำแบบนี้เพื่อเห็นชัดในหน้าคุณเอง:
+
+เปิด Terminal ใหม่ใน VS Code
+รัน:
+source ~/.zshrc
+cd /Users/kriang/tenant-management-frontend
+npm run dev
+แล้วเปิด http://localhost:5173
+ถ้าตอนนี้แท็บขึ้นเป็น node อยู่ ให้พิมพ์ .exit (หรือกด Ctrl + C) ก่อน เพื่อออกจาก Node REPL แล้วค่อยรันคำสั่งด้านบนครับ.
