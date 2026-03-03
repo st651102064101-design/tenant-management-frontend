@@ -83,6 +83,61 @@
       </div>
     </div>
 
+    <!-- Telegram Chat Preview -->
+    <div class="telegram-chat-section">
+      <h2>💬 Telegram Chat Preview</h2>
+      <div class="chat-phone-frame">
+        <div class="chat-phone-header">
+          <span class="chat-group-icon">👥</span>
+          <div class="chat-group-info">
+            <span class="chat-group-name">Parcel Noti</span>
+            <span class="chat-group-status">{{ telegramMessages.length }} ข้อความ</span>
+          </div>
+          <button class="chat-refresh-btn" @click="loadTelegramMessages(true)" :disabled="telegramChatLoading" title="รีเฟรช">
+            <span :class="{ 'spin-icon': telegramChatLoading }">🔄</span>
+          </button>
+        </div>
+        <div class="chat-messages-area" ref="chatMessagesArea">
+          <div v-if="telegramChatLoading && telegramMessages.length === 0" class="chat-loading">
+            กำลังโหลดข้อความ...
+          </div>
+          <div v-else-if="telegramMessages.length === 0" class="chat-empty">
+            <p>📭 ยังไม่มีข้อความ</p>
+            <p class="chat-empty-hint">ลองส่งข้อความทดสอบ หรือรอสักครู่</p>
+          </div>
+          <template v-else>
+            <div
+              v-for="msg in telegramMessages"
+              :key="msg.id"
+              class="chat-bubble-wrap"
+              :class="{ 'chat-bubble-bot': msg.from.isBot, 'chat-bubble-user': !msg.from.isBot }"
+            >
+              <div class="chat-bubble">
+                <span v-if="!msg.from.isBot" class="chat-sender">{{ msg.from.name }}</span>
+                <span v-if="msg.hasPhoto" class="chat-attachment">📷 รูปภาพ</span>
+                <span v-if="msg.hasDocument" class="chat-attachment">📎 ไฟล์</span>
+                <p class="chat-text">{{ msg.text || (msg.hasPhoto ? '' : '(ไม่มีข้อความ)') }}</p>
+                <span class="chat-time">{{ formatChatTime(msg.date) }}</span>
+              </div>
+            </div>
+          </template>
+        </div>
+        <div class="chat-input-bar">
+          <input
+            v-model="chatInput"
+            type="text"
+            placeholder="พิมพ์ข้อความ..."
+            @keyup.enter="sendChatMessage"
+            :disabled="chatSending"
+            class="chat-input"
+          />
+          <button @click="sendChatMessage" class="chat-send-btn" :disabled="chatSending || !chatInput.trim()">
+            {{ chatSending ? '⏳' : '➤' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Volume Control Section -->
     <div class="control-section">
       <h2>🔊 ระดับเสียงพูด</h2>
@@ -545,6 +600,14 @@ const credentialUploading = ref(false);
 const telegramTesting = ref(false);
 const captureSending = ref(false);
 
+// Telegram Chat Preview
+const telegramMessages = ref([]);
+const telegramChatLoading = ref(false);
+const chatInput = ref('');
+const chatSending = ref(false);
+const chatMessagesArea = ref(null);
+let chatPollInterval = null;
+
 let uptimeTicker = null; // interval id for uptime updates
 let wifiScanInterval = null; // interval id for auto wifi scan
 const wsConnected = ref(false);
@@ -764,6 +827,8 @@ const captureAndSendTelegram = async () => {
     const result = await piAPI.captureAndSendTelegram();
     showMessage(result.message || 'ถ่ายภาพและส่ง Telegram สำเร็จ', 'success');
     setTimeout(refreshLogs, 400);
+    // Refresh chat after capture sends a telegram message
+    setTimeout(loadTelegramMessages, 1500);
   } catch (err) {
     const retryMessage = err.message?.includes('กดถ่ายใหม่')
       ? err.message
@@ -772,6 +837,56 @@ const captureAndSendTelegram = async () => {
     await showAlert(retryMessage, 'ถ่ายไม่สำเร็จ');
   } finally {
     captureSending.value = false;
+  }
+};
+
+// ─── Telegram Chat Preview ───────────────────────────────────
+const formatChatTime = (unixTimestamp) => {
+  if (!unixTimestamp) return '';
+  const d = new Date(unixTimestamp * 1000);
+  return d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+};
+
+const scrollChatToBottom = () => {
+  nextTick(() => {
+    if (chatMessagesArea.value) {
+      chatMessagesArea.value.scrollTop = chatMessagesArea.value.scrollHeight;
+    }
+  });
+};
+
+const loadTelegramMessages = async (force = false) => {
+  try {
+    telegramChatLoading.value = true;
+    const result = await piAPI.getTelegramMessages(force);
+    if (result.success) {
+      const prevLen = telegramMessages.value.length;
+      telegramMessages.value = result.messages || [];
+      if (force || telegramMessages.value.length > prevLen) {
+        scrollChatToBottom();
+      }
+    }
+  } catch (err) {
+    console.error('Error loading Telegram messages:', err);
+  } finally {
+    telegramChatLoading.value = false;
+  }
+};
+
+const sendChatMessage = async () => {
+  const text = chatInput.value.trim();
+  if (!text) return;
+  chatSending.value = true;
+  try {
+    await piAPI.sendTelegramMessage(text);
+    chatInput.value = '';
+    // Refresh messages to show the sent message
+    await loadTelegramMessages(true);
+    scrollChatToBottom();
+  } catch (err) {
+    showMessage('ส่งข้อความไม่สำเร็จ: ' + err.message, 'error');
+  } finally {
+    chatSending.value = false;
   }
 };
 
@@ -984,6 +1099,7 @@ onMounted(() => {
   loadVolume();
   loadWifiStatus();
   loadCredentialStatus();
+  loadTelegramMessages(true);
   if (route.path === '/pi') {
     scanWifiNetworks();
   }
@@ -992,6 +1108,9 @@ onMounted(() => {
   if (route.path === '/pi') {
     wifiScanInterval = setInterval(scanWifiNetworks, 5000);
   }
+
+  // Poll Telegram chat every 5 seconds
+  chatPollInterval = setInterval(loadTelegramMessages, 5000);
 
   watch(
     () => route.path,
@@ -1030,6 +1149,10 @@ onUnmounted(() => {
   if (wifiScanInterval) {
     clearInterval(wifiScanInterval);
     wifiScanInterval = null;
+  }
+  if (chatPollInterval) {
+    clearInterval(chatPollInterval);
+    chatPollInterval = null;
   }
 });
 
@@ -1350,6 +1473,240 @@ onUnmounted(() => {
 
 .btn-telegram-test:disabled {
   opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ─── Telegram Chat Preview ───────────────────────────────────── */
+.telegram-chat-section {
+  background: white;
+  border-radius: 18px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+}
+
+.telegram-chat-section h2 {
+  margin-top: 0;
+  margin-bottom: 16px;
+  color: #1d1d1f;
+  font-size: 1.3rem;
+}
+
+.chat-phone-frame {
+  border: 1px solid #e5e5ea;
+  border-radius: 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: 520px;
+  background: #e5ddd5;
+}
+
+.chat-phone-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: #229ed9;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.chat-group-icon {
+  font-size: 1.5rem;
+  background: rgba(255,255,255,0.2);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chat-group-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-group-name {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.chat-group-status {
+  font-size: 0.75rem;
+  opacity: 0.85;
+}
+
+.chat-refresh-btn {
+  background: rgba(255,255,255,0.18);
+  border: none;
+  color: #fff;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+.chat-refresh-btn:hover:not(:disabled) {
+  background: rgba(255,255,255,0.3);
+}
+
+.chat-refresh-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.spin-icon {
+  display: inline-block;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.chat-messages-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 200px;
+  max-height: 380px;
+  background: #e5ddd5 url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23c5bfb0' fill-opacity='0.15'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+}
+
+.chat-loading,
+.chat-empty {
+  text-align: center;
+  padding: 40px 16px;
+  color: #8e8e93;
+}
+
+.chat-empty-hint {
+  font-size: 0.8rem;
+  margin-top: 4px;
+  opacity: 0.7;
+}
+
+.chat-bubble-wrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-bubble-bot {
+  align-items: flex-end;
+}
+
+.chat-bubble-user {
+  align-items: flex-start;
+}
+
+.chat-bubble {
+  max-width: 80%;
+  padding: 8px 12px;
+  border-radius: 12px;
+  position: relative;
+  word-break: break-word;
+  box-shadow: 0 1px 1px rgba(0,0,0,0.08);
+}
+
+.chat-bubble-bot .chat-bubble {
+  background: #dcf8c6;
+  border-bottom-right-radius: 4px;
+}
+
+.chat-bubble-user .chat-bubble {
+  background: #ffffff;
+  border-bottom-left-radius: 4px;
+}
+
+.chat-sender {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #075e54;
+  margin-bottom: 2px;
+}
+
+.chat-attachment {
+  display: inline-block;
+  font-size: 0.8rem;
+  color: #6b6b70;
+  margin-bottom: 2px;
+}
+
+.chat-text {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  color: #1d1d1f;
+  white-space: pre-wrap;
+}
+
+.chat-time {
+  display: block;
+  text-align: right;
+  font-size: 0.68rem;
+  color: #8e8e93;
+  margin-top: 2px;
+}
+
+.chat-input-bar {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #f0f0f0;
+  border-top: 1px solid #d1d1d6;
+  flex-shrink: 0;
+}
+
+.chat-input {
+  flex: 1;
+  border: 1px solid #d1d1d6;
+  border-radius: 20px;
+  padding: 8px 16px;
+  font-size: 0.9rem;
+  outline: none;
+  background: #fff;
+  transition: border-color 0.2s;
+}
+
+.chat-input:focus {
+  border-color: #229ed9;
+}
+
+.chat-send-btn {
+  background: #229ed9;
+  color: #fff;
+  border: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.chat-send-btn:hover:not(:disabled) {
+  background: #178bc0;
+}
+
+.chat-send-btn:disabled {
+  opacity: 0.45;
   cursor: not-allowed;
 }
 

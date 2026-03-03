@@ -65,6 +65,8 @@ export const piAPI = {
   speak: (text) => apiCall('/api/pi/speak', { method: 'POST', body: JSON.stringify({ text }) }),
   testTelegram: (message) => apiCall('/api/pi/telegram/test', { method: 'POST', body: JSON.stringify({ message }) }),
   captureAndSendTelegram: () => apiCall('/api/pi/capture-telegram', { method: 'POST' }),
+  getTelegramMessages: (force = false) => apiCall(`/api/pi/telegram/messages${force ? '?force=1' : ''}`),
+  sendTelegramMessage: (message) => apiCall('/api/pi/telegram/send', { method: 'POST', body: JSON.stringify({ message }) }),
   getVolume: () => apiCall('/api/pi/volume'),
   setVolume: (volume) => apiCall('/api/pi/volume', { method: 'POST', body: JSON.stringify({ volume }) }),
   getCredentialStatus: () => apiCall('/api/pi/credential'),
