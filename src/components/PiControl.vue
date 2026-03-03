@@ -225,6 +225,75 @@
       </div>
     </div>
 
+    <!-- GCP Credential Management -->
+    <div class="credential-section">
+      <h2>🔑 Google Cloud Credential</h2>
+      <div class="credential-status" v-if="credentialInfo">
+        <div class="credential-row">
+          <span class="credential-label">📧 Service Account</span>
+          <span class="credential-value">{{ credentialInfo.clientEmail || 'N/A' }}</span>
+        </div>
+        <div class="credential-row">
+          <span class="credential-label">📁 Project</span>
+          <span class="credential-value">{{ credentialInfo.projectId || 'N/A' }}</span>
+        </div>
+        <div class="credential-row">
+          <span class="credential-label">🔑 Key ID</span>
+          <span class="credential-value">{{ credentialInfo.keyId || 'N/A' }}</span>
+        </div>
+        <div class="credential-row">
+          <span class="credential-label">📅 แก้ไขล่าสุด</span>
+          <span class="credential-value">{{ credentialInfo.lastModified ? new Date(credentialInfo.lastModified).toLocaleString('th-TH') : 'N/A' }}</span>
+        </div>
+        <div class="credential-row">
+          <span class="credential-label">✅ สถานะ API</span>
+          <span class="credential-value" :class="{ 'api-valid': credentialInfo.apiValid, 'api-invalid': credentialInfo.apiValid === false }">
+            {{ credentialInfo.apiValid === undefined ? '⏳ กำลังตรวจสอบ...' : credentialInfo.apiValid ? '✅ ใช้งานได้' : '❌ ใช้งานไม่ได้' }}
+          </span>
+        </div>
+        <div v-if="credentialInfo.apiError" class="credential-error">
+          ⚠️ {{ credentialInfo.apiError }}
+        </div>
+        <div v-if="credentialError" class="credential-error">
+          ⚠️ {{ credentialError }}
+        </div>
+      </div>
+      <div v-else class="loading">
+        <span>กำลังโหลด...</span>
+      </div>
+
+      <div class="credential-upload">
+        <p class="credential-hint">
+          วาง JSON ของ Service Account Key ใหม่ที่นี่ (ดาวน์โหลดจาก
+          <a href="https://console.cloud.google.com/iam-admin/serviceaccounts" target="_blank" rel="noopener">Google Cloud Console</a>
+          → เลือก Service Account → Keys → Add Key → JSON)
+        </p>
+        <textarea
+          v-model="credentialJson"
+          class="credential-textarea"
+          placeholder='วาง JSON credential ที่นี่... { "type": "service_account", ... }'
+          rows="6"
+          :disabled="credentialUploading"
+        ></textarea>
+        <div class="credential-actions">
+          <button
+            @click="uploadCredential"
+            class="btn-credential-upload"
+            :disabled="credentialUploading || !credentialJson.trim()"
+          >
+            {{ credentialUploading ? '🔄 กำลังอัปโหลด...' : '⬆️ อัปเดต Credential' }}
+          </button>
+          <button
+            @click="clearInbox"
+            class="btn-clear-inbox"
+            :disabled="credentialUploading"
+          >
+            🗑️ ล้างรูปค้าง
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Logs Section -->
     <div class="logs-section">
       <div class="logs-header">
@@ -261,6 +330,7 @@
             :key="index" 
             class="log-line"
             :class="{
+              'log-system-error': log.source === 'system',
               'log-scan': log.message.includes('Scanning') || log.message.includes('scanning'),
               'log-match': log.message.includes('Found') || log.message.includes('Matched'),
               'log-send': log.message.includes('Sending') || log.message.includes('sending'),
@@ -435,6 +505,12 @@ const connectDialog = ref({
   connecting: false,
 });
 
+// Credential management
+const credentialInfo = ref(null);
+const credentialError = ref('');
+const credentialJson = ref('');
+const credentialUploading = ref(false);
+
 let uptimeTicker = null; // interval id for uptime updates
 let wifiScanInterval = null; // interval id for auto wifi scan
 const wsConnected = ref(false);
@@ -476,6 +552,51 @@ const refreshInfo = async () => {
     showMessage('ไม่สามารถเชื่อมต่อกับ Pi ได้: ' + err.message, 'error');
   } finally {
     loading.value = false;
+  }
+};
+
+// Credential management
+const loadCredentialStatus = async () => {
+  try {
+    const data = await piAPI.getCredentialStatus();
+    credentialInfo.value = data;
+    if (data.apiValid === false) {
+      credentialError.value = 'Credential ไม่ถูกต้องหรือหมดอายุ — กรุณาอัปเดต Key ใหม่';
+    } else {
+      credentialError.value = '';
+    }
+  } catch (err) {
+    console.error('Error loading credential status:', err);
+    credentialInfo.value = { exists: false, apiValid: false };
+    credentialError.value = 'ไม่สามารถตรวจสอบ credential ได้';
+  }
+};
+
+const uploadCredential = async () => {
+  if (!credentialJson.value.trim()) return;
+  credentialUploading.value = true;
+  try {
+    const result = await piAPI.uploadCredential(credentialJson.value.trim());
+    showMessage(`✅ อัปเดต Credential สำเร็จ (${result.clientEmail}) — สถานะ: ${result.serviceStatus}`, 'success');
+    credentialJson.value = '';
+    credentialError.value = '';
+    // Reload credential info
+    await loadCredentialStatus();
+    // Refresh logs to see new state
+    setTimeout(() => refreshLogs(), 3000);
+  } catch (err) {
+    showMessage('❌ อัปเดต Credential ล้มเหลว: ' + (err.message || err), 'error');
+  } finally {
+    credentialUploading.value = false;
+  }
+};
+
+const clearInbox = async () => {
+  try {
+    const result = await piAPI.clearInbox();
+    showMessage(`🗑️ ล้างรูปค้างแล้ว ${result.cleared} รูป`, 'success');
+  } catch (err) {
+    showMessage('❌ ล้างรูปค้างล้มเหลว: ' + (err.message || err), 'error');
   }
 };
 
@@ -798,6 +919,7 @@ onMounted(() => {
   startAutoRefresh();
   loadVolume();
   loadWifiStatus();
+  loadCredentialStatus();
   if (route.path === '/pi') {
     scanWifiNetworks();
   }
@@ -1772,6 +1894,13 @@ onUnmounted(() => {
   color: #ef5350;
 }
 
+.log-system-error {
+  background: rgba(255, 59, 48, 0.16);
+  color: #ff6b6b;
+  border-left: 3px solid #ff3b30;
+  padding-left: 10px;
+}
+
 .log-skip {
   background: rgba(156, 39, 176, 0.1);
   color: #ba68c8;
@@ -1886,5 +2015,147 @@ onUnmounted(() => {
     max-height: 250px;
     font-size: 12px;
   }
+}
+
+/* Credential Section */
+.credential-section {
+  background: #fff;
+  border-radius: 16px;
+  padding: 24px;
+  margin-top: 16px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+}
+.credential-section h2 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: #1d1d1f;
+}
+.credential-status {
+  background: #f5f5f7;
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+.credential-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid #e5e5ea;
+}
+.credential-row:last-of-type {
+  border-bottom: none;
+}
+.credential-label {
+  font-size: 0.85rem;
+  color: #6e6e73;
+  font-weight: 500;
+}
+.credential-value {
+  font-size: 0.85rem;
+  color: #1d1d1f;
+  font-family: 'SF Mono', 'Menlo', monospace;
+  word-break: break-all;
+  max-width: 60%;
+  text-align: right;
+}
+.credential-error {
+  margin-top: 10px;
+  padding: 10px 14px;
+  background: #fff3f3;
+  border: 1px solid #ffcccb;
+  border-radius: 10px;
+  color: #d32f2f;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+.api-valid {
+  color: #34c759 !important;
+  font-weight: 700;
+}
+.api-invalid {
+  color: #ff3b30 !important;
+  font-weight: 700;
+}
+.credential-upload {
+  margin-top: 12px;
+}
+.credential-hint {
+  font-size: 0.82rem;
+  color: #8e8e93;
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+.credential-hint a {
+  color: #007aff;
+  text-decoration: none;
+}
+.credential-hint a:hover {
+  text-decoration: underline;
+}
+.credential-textarea {
+  width: 100%;
+  border: 1px solid #d1d1d6;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-family: 'SF Mono', 'Menlo', monospace;
+  font-size: 0.78rem;
+  resize: vertical;
+  background: #fafafa;
+  color: #1d1d1f;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+.credential-textarea:focus {
+  outline: none;
+  border-color: #007aff;
+  box-shadow: 0 0 0 3px rgba(0,122,255,0.12);
+}
+.credential-textarea:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.credential-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.btn-credential-upload {
+  padding: 10px 20px;
+  background: #007aff;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, opacity 0.2s;
+}
+.btn-credential-upload:hover:not(:disabled) {
+  background: #0056cc;
+}
+.btn-credential-upload:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.btn-clear-inbox {
+  padding: 10px 20px;
+  background: #f5f5f7;
+  color: #ff3b30;
+  border: 1px solid #e5e5ea;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, opacity 0.2s;
+}
+.btn-clear-inbox:hover:not(:disabled) {
+  background: #fff0f0;
+}
+.btn-clear-inbox:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 </style>

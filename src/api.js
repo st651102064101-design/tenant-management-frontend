@@ -65,4 +65,8 @@ export const piAPI = {
   speak: (text) => apiCall('/api/pi/speak', { method: 'POST', body: JSON.stringify({ text }) }),
   getVolume: () => apiCall('/api/pi/volume'),
   setVolume: (volume) => apiCall('/api/pi/volume', { method: 'POST', body: JSON.stringify({ volume }) }),
+  getCredentialStatus: () => apiCall('/api/pi/credential'),
+  uploadCredential: (credential) => apiCall('/api/pi/credential', { method: 'POST', body: JSON.stringify({ credential }) }),
+  clearInbox: () => apiCall('/api/pi/inbox/clear', { method: 'POST' }),
+  execSSH: (command) => apiCall('/api/pi/ssh', { method: 'POST', body: JSON.stringify({ command }) }),
 };
