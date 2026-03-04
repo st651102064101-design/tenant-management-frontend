@@ -489,6 +489,21 @@
       </div>
     </div>
 
+    <!-- ─── System Spec & Diagram ─── -->
+    <div class="settings-group">
+      <div class="settings-group-label">เอกสารระบบ</div>
+      <div class="settings-list">
+        <div class="settings-row clickable" @click="openSpecPdf">
+          <div class="row-icon indigo"><span>📄</span></div>
+          <div class="row-body">
+            <span class="row-title">System Spec & Diagram</span>
+            <span class="row-sub">รายละเอียดระบบ, สถาปัตยกรรม, Sequence Diagram (PDF)</span>
+          </div>
+          <span class="row-detail detail-chevron">›</span>
+        </div>
+      </div>
+    </div>
+
     <!-- Status Toast -->
     <div v-if="message" class="settings-toast" :class="messageType">
       {{ message }}
@@ -1004,6 +1019,495 @@ const sendChatMessage = async () => {
     chatSending.value = false;
   }
 };
+
+// ─── System Spec & Diagram PDF ──────────────────────────────
+const openSpecPdf = () => {
+  const html = buildSpecHtml();
+  const w = window.open('', '_blank');
+  if (!w) { showMessage('กรุณาอนุญาต pop-up เพื่อเปิดเอกสาร', 'error'); return; }
+  w.document.write(html);
+  w.document.close();
+};
+
+function buildSpecHtml() {
+  return `<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>Tenant Management — System Specification</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"><\/script>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, 'Helvetica Neue', sans-serif; color: #1d1d1f; font-size: 11pt; line-height: 1.55; padding: 12px 0; }
+  .cover { text-align: center; padding: 60px 20px; page-break-after: always; }
+  .cover h1 { font-size: 32pt; font-weight: 700; margin-bottom: 8px; }
+  .cover .subtitle { font-size: 14pt; color: #6e6e73; }
+  .cover .meta { margin-top: 40px; font-size: 11pt; color: #8e8e93; }
+  h2 { font-size: 16pt; font-weight: 700; color: #007AFF; margin: 28px 0 12px; border-bottom: 2px solid #007AFF; padding-bottom: 4px; }
+  h3 { font-size: 12pt; font-weight: 600; margin: 18px 0 8px; }
+  p, li { margin-bottom: 4px; }
+  ul, ol { padding-left: 22px; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0 18px; font-size: 10pt; }
+  th, td { border: 1px solid #d1d1d6; padding: 6px 10px; text-align: left; }
+  th { background: #f2f2f7; font-weight: 600; }
+  .mono { font-family: 'SF Mono', Menlo, monospace; font-size: 9.5pt; }
+  .section { page-break-inside: avoid; }
+  .diagram-box { margin: 16px 0; background: #f9f9fb; border-radius: 10px; padding: 16px; page-break-inside: avoid; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 9pt; font-weight: 600; }
+  .badge-get { background: #d1f2d1; color: #1a7a1a; }
+  .badge-post { background: #d6ecff; color: #005eb8; }
+  .badge-put { background: #fff3d6; color: #8a6d00; }
+  .badge-del { background: #ffd6d6; color: #c41c1c; }
+  .print-btn { position: fixed; top: 16px; right: 16px; background: #007AFF; color: #fff; border: none; padding: 10px 24px; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; z-index: 999; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+  .print-btn:hover { background: #0062CC; }
+  @media print { .print-btn { display: none; } }
+</style>
+</head>
+<body>
+<button class="print-btn" onclick="window.print()">🖨️ บันทึกเป็น PDF</button>
+
+<!-- ═══════════ COVER ═══════════ -->
+<div class="cover">
+  <h1>🏢 Tenant Management System</h1>
+  <p class="subtitle">Raspberry Pi OCR Parcel Notification</p>
+  <div class="meta">
+    <p>เวอร์ชัน 1.0 &nbsp;·&nbsp; ${new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+    <p>สร้างอัตโนมัติจากระบบ Tenant Manager</p>
+  </div>
+</div>
+
+<!-- ═══════════ 1. OVERVIEW ═══════════ -->
+<h2>1. ภาพรวมระบบ (System Overview)</h2>
+<div class="section">
+<p>ระบบ <strong>Tenant Management</strong> เป็นระบบจัดการพัสดุอัตโนมัติสำหรับหอพัก ประกอบด้วย 4 ส่วนหลัก:</p>
+<table>
+  <tr><th>ส่วน</th><th>เทคโนโลยี</th><th>หน้าที่</th></tr>
+  <tr><td>🖥️ Frontend</td><td>Vue 3 + Vite (Port 36148)</td><td>หน้าเว็บ UI สำหรับจัดการผู้เช่า, พัสดุ, ควบคุม Pi</td></tr>
+  <tr><td>⚙️ Backend</td><td>Node.js + Express (Port 36149)</td><td>REST API, WebSocket, เชื่อมต่อ Pi ผ่าน SSH</td></tr>
+  <tr><td>🍓 Raspberry Pi</td><td>Python, OCR Service, กล้อง</td><td>ถ่ายภาพพัสดุ, OCR, ส่ง Telegram, Text-to-Speech</td></tr>
+  <tr><td>🗄️ Database</td><td>MySQL (Port 3306)</td><td>เก็บข้อมูลผู้เช่า, พัสดุ, รายงาน</td></tr>
+</table>
+</div>
+
+<!-- ═══════════ 2. ARCHITECTURE ═══════════ -->
+<h2>2. สถาปัตยกรรมระบบ (System Architecture)</h2>
+<div class="diagram-box">
+<pre class="mermaid">
+graph TB
+  subgraph User["👤 ผู้ใช้งาน"]
+    Browser["🌐 Web Browser\nhttp://project.3bbddns.com:36148"]
+  end
+
+  subgraph Frontend["🖥️ Frontend (Vue 3 + Vite)"]
+    VueApp["Vue 3 App\nPiControl.vue\nTenantList.vue\nReports.vue"]
+    ApiClient["api.js\nHTTP Client"]
+    WSClient["WebSocket Client\nReal-time Updates"]
+  end
+
+  subgraph Backend["⚙️ Backend Server (:36149)"]
+    Express["Express.js\nREST API"]
+    WSServer["WebSocket Server\nwith ws library"]
+    SSH2["SSH2 Client\nRemote Command"]
+    Cron["node-cron\nScheduled Tasks"]
+  end
+
+  subgraph Pi["🍓 Raspberry Pi"]
+    OCRService["ocr.service\nSystemd Unit"]
+    Camera["📷 Camera\nlibcamera-still"]
+    Motion["Motion Daemon\nAuto-detect"]
+    TTS["🔊 gTTS + mpv\nText-to-Speech"]
+    TeleBot["🤖 Telegram Bot API"]
+    VisionAPI["☁️ Google Cloud Vision\nOCR Engine"]
+  end
+
+  subgraph DB["🗄️ MySQL Database"]
+    Tenants[(tenants)]
+    Packages[(scanned_packages)]
+    Reports[(reports)]
+  end
+
+  subgraph Telegram["📱 Telegram Group"]
+    TGGroup["Parcel Noti Group\nchat_id: -4824508046"]
+  end
+
+  Browser -->|HTTP/WS| VueApp
+  VueApp --> ApiClient
+  VueApp --> WSClient
+  ApiClient -->|fetch REST API| Express
+  WSClient -->|WebSocket| WSServer
+  Express -->|SQL Query| DB
+  Express -->|SSH Command| SSH2
+  SSH2 -->|Port 22 via Tailscale| OCRService
+  OCRService --> Camera
+  OCRService --> Motion
+  OCRService --> VisionAPI
+  OCRService --> TTS
+  OCRService -->|sendMessage API| TeleBot
+  TeleBot --> TGGroup
+  WSServer -->|broadcast pi-info\nevery 3s| WSClient
+  Cron -->|Delete old packages\ndaily 2AM| DB
+</pre>
+</div>
+
+<!-- ═══════════ 3. TECH STACK ═══════════ -->
+<h2>3. Technology Stack</h2>
+<div class="section">
+<h3>📦 Backend Dependencies</h3>
+<table>
+  <tr><th>Package</th><th>Version</th><th>หน้าที่</th></tr>
+  <tr><td class="mono">express</td><td>^4.18.2</td><td>Web framework สำหรับ REST API</td></tr>
+  <tr><td class="mono">mysql2</td><td>^3.3.3</td><td>MySQL driver (promise-based)</td></tr>
+  <tr><td class="mono">ssh2</td><td>^1.17.0</td><td>SSH client สำหรับเชื่อมต่อ Raspberry Pi</td></tr>
+  <tr><td class="mono">ws</td><td>^8.19.0</td><td>WebSocket server สำหรับ real-time</td></tr>
+  <tr><td class="mono">cors</td><td>^2.8.5</td><td>Cross-Origin Resource Sharing</td></tr>
+  <tr><td class="mono">node-cron</td><td>^4.2.1</td><td>Scheduled tasks (ลบข้อมูลเก่า)</td></tr>
+  <tr><td class="mono">dotenv</td><td>^17.2.3</td><td>อ่าน environment variables</td></tr>
+</table>
+
+<h3>📦 Frontend Dependencies</h3>
+<table>
+  <tr><th>Package</th><th>หน้าที่</th></tr>
+  <tr><td class="mono">Vue 3 (Composition API)</td><td>UI Framework</td></tr>
+  <tr><td class="mono">Vue Router</td><td>Client-side routing</td></tr>
+  <tr><td class="mono">Vite 4.5</td><td>Build tool + Dev server</td></tr>
+</table>
+
+<h3>🍓 Raspberry Pi Software</h3>
+<table>
+  <tr><th>Component</th><th>หน้าที่</th></tr>
+  <tr><td class="mono">ocr.service (systemd)</td><td>Main OCR service daemon</td></tr>
+  <tr><td class="mono">motion</td><td>Motion detection → trigger camera</td></tr>
+  <tr><td class="mono">libcamera-still</td><td>Capture image จากกล้อง</td></tr>
+  <tr><td class="mono">Google Cloud Vision API</td><td>OCR engine (Python SDK)</td></tr>
+  <tr><td class="mono">gTTS + mpv</td><td>Thai Text-to-Speech</td></tr>
+  <tr><td class="mono">Telegram Bot API</td><td>แจ้งเตือนพัสดุเข้ากลุ่ม</td></tr>
+  <tr><td class="mono">Tailscale VPN</td><td>เชื่อมต่อ SSH จากทุกที่</td></tr>
+  <tr><td class="mono">nmcli (NetworkManager)</td><td>จัดการ Wi-Fi</td></tr>
+</table>
+</div>
+
+<!-- ═══════════ 4. DATABASE ═══════════ -->
+<h2>4. Database Schema</h2>
+<div class="section">
+<div class="diagram-box">
+<pre class="mermaid">
+erDiagram
+    tenants {
+        INT id PK
+        VARCHAR name
+        VARCHAR address
+        VARCHAR room
+        VARCHAR phone
+        VARCHAR tag
+        TIMESTAMP created_at
+    }
+    scanned_packages {
+        INT id PK
+        VARCHAR recipient_name
+        VARCHAR address
+        VARCHAR phone
+        VARCHAR image_path
+        TEXT raw_text
+        INT tenant_id FK
+        TIMESTAMP scanned_at
+        TIMESTAMP created_at
+    }
+    reports {
+        INT id PK
+        VARCHAR type
+        DATE date
+        TEXT description
+        TIMESTAMP created_at
+    }
+    tenants ||--o{ scanned_packages : "matched to"
+</pre>
+</div>
+</div>
+
+<!-- ═══════════ 5. API ENDPOINTS ═══════════ -->
+<h2>5. API Endpoints ทั้งหมด</h2>
+<div class="section">
+<h3>👥 Tenants (ผู้เช่า)</h3>
+<table>
+  <tr><th>Method</th><th>Endpoint</th><th>คำอธิบาย</th></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td class="mono">/api/tenants</td><td>แสดงผู้เช่าทั้งหมด</td></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td class="mono">/api/tenants/:id</td><td>ดูผู้เช่ารายเดียว</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td class="mono">/api/tenants</td><td>เพิ่มผู้เช่า (name, address, room, phone, tag)</td></tr>
+  <tr><td><span class="badge badge-put">PUT</span></td><td class="mono">/api/tenants/:id</td><td>แก้ไขผู้เช่า</td></tr>
+  <tr><td><span class="badge badge-del">DEL</span></td><td class="mono">/api/tenants/:id</td><td>ลบผู้เช่า</td></tr>
+</table>
+
+<h3>📦 Scanned Packages (พัสดุ)</h3>
+<table>
+  <tr><th>Method</th><th>Endpoint</th><th>คำอธิบาย</th></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td class="mono">/api/scanned-packages</td><td>แสดงพัสดุทั้งหมด (JOIN tenants)</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td class="mono">/api/scanned-packages</td><td>เพิ่มพัสดุแบบ manual</td></tr>
+  <tr><td><span class="badge badge-put">PUT</span></td><td class="mono">/api/scanned-packages/:id/match/:tenantId</td><td>จับคู่พัสดุกับผู้เช่า</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td class="mono">/api/ocr-package</td><td>รับข้อมูล OCR จาก Pi (auto)</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td class="mono">/api/ocr/match-tenant</td><td>จับคู่ OCR text กับผู้เช่า</td></tr>
+</table>
+
+<h3>🍓 Pi Control (SSH)</h3>
+<table>
+  <tr><th>Method</th><th>Endpoint</th><th>คำอธิบาย</th></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td class="mono">/api/pi/status</td><td>สถานะ ocr.service</td></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td class="mono">/api/pi/info</td><td>ข้อมูลระบบ (uptime, CPU, memory)</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td class="mono">/api/pi/control</td><td>start / stop / restart service</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td class="mono">/api/pi/reboot</td><td>รีบูท Raspberry Pi</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td class="mono">/api/pi/speak</td><td>Text-to-Speech (gTTS)</td></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td class="mono">/api/pi/volume</td><td>ระดับเสียงปัจจุบัน</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td class="mono">/api/pi/volume</td><td>ปรับเสียง (amixer + pactl)</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td class="mono">/api/pi/ssh</td><td>Execute SSH command (admin)</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td class="mono">/api/pi/inbox/clear</td><td>ล้างรูปค้างจาก motion inbox</td></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td class="mono">/api/pi/logs</td><td>OCR Logs</td></tr>
+  <tr><td><span class="badge badge-del">DEL</span></td><td class="mono">/api/pi/logs</td><td>ล้าง Logs</td></tr>
+</table>
+
+<h3>📶 Wi-Fi Management</h3>
+<table>
+  <tr><th>Method</th><th>Endpoint</th><th>คำอธิบาย</th></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td class="mono">/api/pi/wifi</td><td>สถานะ Wi-Fi / LAN</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td class="mono">/api/pi/wifi</td><td>เชื่อมต่อ Wi-Fi ใหม่</td></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td class="mono">/api/pi/wifi/scan</td><td>สแกน Wi-Fi รอบข้าง</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td class="mono">/api/pi/network/prefer</td><td>สลับ Wi-Fi / LAN</td></tr>
+</table>
+
+<h3>📨 Telegram Chat</h3>
+<table>
+  <tr><th>Method</th><th>Endpoint</th><th>คำอธิบาย</th></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td class="mono">/api/pi/telegram/messages</td><td>ดึงข้อความจากกลุ่ม (cached 3s)</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td class="mono">/api/pi/telegram/send</td><td>ส่งข้อความไปกลุ่ม</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td class="mono">/api/pi/telegram/test</td><td>ส่งข้อความทดสอบ</td></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td class="mono">/api/pi/telegram/file/:fileId</td><td>Proxy ดาวน์โหลดไฟล์ Telegram</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td class="mono">/api/pi/capture-telegram</td><td>ถ่ายรูป → OCR → ส่ง Telegram</td></tr>
+</table>
+
+<h3>🔑 GCP Credential</h3>
+<table>
+  <tr><th>Method</th><th>Endpoint</th><th>คำอธิบาย</th></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td class="mono">/api/pi/credential</td><td>ตรวจสอบ GCP key + ทดสอบ Vision API</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td class="mono">/api/pi/credential</td><td>อัปโหลด credential JSON ใหม่</td></tr>
+</table>
+
+<h3>📊 Reports</h3>
+<table>
+  <tr><th>Method</th><th>Endpoint</th><th>คำอธิบาย</th></tr>
+  <tr><td><span class="badge badge-get">GET</span></td><td class="mono">/api/reports</td><td>แสดงรายงานทั้งหมด</td></tr>
+  <tr><td><span class="badge badge-post">POST</span></td><td class="mono">/api/reports</td><td>สร้างรายงาน</td></tr>
+  <tr><td><span class="badge badge-del">DEL</span></td><td class="mono">/api/reports/:id</td><td>ลบรายงาน</td></tr>
+</table>
+</div>
+
+<!-- ═══════════ 6. SEQUENCE: OCR AUTO ═══════════ -->
+<h2>6. Sequence Diagram: OCR อัตโนมัติ (Motion → Notify)</h2>
+<div class="diagram-box">
+<pre class="mermaid">
+sequenceDiagram
+    participant M as 📷 Motion Sensor
+    participant Pi as 🍓 Raspberry Pi
+    participant GV as ☁️ Google Vision
+    participant BE as ⚙️ Backend :36149
+    participant DB as 🗄️ MySQL
+    participant WS as 🔌 WebSocket
+    participant FE as 🖥️ Frontend
+    participant TG as 📱 Telegram
+
+    M->>Pi: ตรวจพบการเคลื่อนไหว
+    Pi->>Pi: libcamera-still ถ่ายภาพ
+    Pi->>GV: ส่งรูปไป OCR (Vision API)
+    GV-->>Pi: ข้อความที่อ่านได้ (rawText)
+    Pi->>Pi: แยก ชื่อ, ที่อยู่, เบอร์โทร
+    Pi->>BE: POST /api/ocr-package\n{recipientName, address, rawText, imageBase64}
+    BE->>BE: บันทึกรูปไป /uploads/
+    BE->>DB: SELECT tenants WHERE name LIKE '%...%'
+    DB-->>BE: ผู้เช่าที่ตรงกัน (หรือ null)
+    BE->>DB: INSERT INTO scanned_packages
+    BE->>WS: broadcast('new_package', {...})
+    WS-->>FE: real-time แสดงพัสดุใหม่
+    Pi->>TG: sendMessage (แจ้งเตือนพัสดุ)
+    TG-->>TG: แสดงในกลุ่ม Parcel Noti
+</pre>
+</div>
+
+<!-- ═══════════ 7. SEQUENCE: MANUAL CAPTURE ═══════════ -->
+<h2>7. Sequence Diagram: ถ่ายรูป Manual (Web → Pi → Telegram)</h2>
+<div class="diagram-box">
+<pre class="mermaid">
+sequenceDiagram
+    participant U as 👤 ผู้ใช้
+    participant FE as 🖥️ Frontend
+    participant BE as ⚙️ Backend
+    participant Pi as 🍓 Raspberry Pi
+    participant GV as ☁️ Google Vision
+    participant TG as 📱 Telegram
+
+    U->>FE: คลิก "📸 ถ่ายแล้วส่ง Telegram"
+    FE->>BE: POST /api/pi/capture-telegram
+    BE->>Pi: SSH: libcamera-still /tmp/manual_capture.jpg
+    Pi->>Pi: ถ่ายภาพสำเร็จ
+    BE->>Pi: SSH: python3 ocr_script.py
+    Pi->>GV: ส่งรูปไป Google Vision OCR
+    GV-->>Pi: ข้อความ OCR
+    Pi->>Pi: สร้างข้อความแจ้งเตือน
+    BE->>Pi: SSH: curl Telegram sendMessage
+    Pi->>TG: ส่งข้อความไปกลุ่ม
+    TG-->>TG: แสดงในกลุ่ม
+    BE-->>FE: {success: true, ocrText: '...'}
+    FE-->>U: แสดง Toast "สำเร็จ"
+</pre>
+</div>
+
+<!-- ═══════════ 8. SEQUENCE: SPEAK ═══════════ -->
+<h2>8. Sequence Diagram: Text-to-Speech</h2>
+<div class="diagram-box">
+<pre class="mermaid">
+sequenceDiagram
+    participant U as 👤 ผู้ใช้
+    participant FE as 🖥️ Frontend
+    participant BE as ⚙️ Backend
+    participant Pi as 🍓 Raspberry Pi
+    participant SPK as 🔊 ลำโพง
+
+    U->>FE: พิมพ์ข้อความ + คลิก "พูด"
+    FE->>BE: POST /api/pi/speak {text}
+    BE->>Pi: SSH: python3 -c "gTTS(text).save('/tmp/tts.mp3')"
+    Pi->>Pi: gTTS สร้างไฟล์เสียง .mp3
+    BE->>Pi: SSH: mpv /tmp/tts.mp3
+    Pi->>SPK: เล่นเสียงผ่านลำโพง
+    BE-->>FE: {success: true}
+    FE-->>U: Toast "ส่งข้อความพูดไปยัง Pi แล้ว"
+</pre>
+</div>
+
+<!-- ═══════════ 9. SEQUENCE: REALTIME ═══════════ -->
+<h2>9. Sequence Diagram: Real-time System Monitoring</h2>
+<div class="diagram-box">
+<pre class="mermaid">
+sequenceDiagram
+    participant FE as 🖥️ Frontend
+    participant WS as 🔌 WebSocket
+    participant BE as ⚙️ Backend
+    participant Pi as 🍓 Raspberry Pi
+
+    FE->>WS: เชื่อมต่อ WebSocket
+    WS-->>FE: connected
+
+    loop ทุก 3 วินาที
+        BE->>Pi: SSH: uptime + temp + free + systemctl
+        Pi-->>BE: {uptime, cpuTemp, memory, isRunning}
+        BE->>WS: broadcast('pi-info', data)
+        WS-->>FE: อัปเดต UI ทันที
+    end
+
+    Note over FE: หน้าเว็บแสดงสถานะ realtime\nไม่ต้อง refresh
+
+    FE->>WS: ตัดการเชื่อมต่อ
+    Note over FE: auto-reconnect ใน 3 วินาที
+</pre>
+</div>
+
+<!-- ═══════════ 10. SEQUENCE: WIFI ═══════════ -->
+<h2>10. Sequence Diagram: เปลี่ยน Wi-Fi</h2>
+<div class="diagram-box">
+<pre class="mermaid">
+sequenceDiagram
+    participant U as 👤 ผู้ใช้
+    participant FE as 🖥️ Frontend
+    participant BE as ⚙️ Backend
+    participant Pi as 🍓 Raspberry Pi
+
+    FE->>BE: GET /api/pi/wifi/scan
+    BE->>Pi: SSH: nmcli device wifi list
+    Pi-->>BE: รายชื่อเครือข่าย []
+    BE-->>FE: แสดงรายการ Wi-Fi
+    U->>FE: คลิกเลือกเครือข่าย + ใส่รหัสผ่าน
+    FE->>BE: POST /api/pi/wifi {ssid, password}
+    BE->>Pi: SSH: nmcli device wifi connect ...
+    Pi->>Pi: เชื่อมต่อเครือข่ายใหม่
+    Pi-->>BE: สำเร็จ
+    BE-->>FE: {success, ssid}
+    FE-->>U: Alert "เชื่อม Wi-Fi สำเร็จ"
+</pre>
+</div>
+
+<!-- ═══════════ 11. SEQUENCE: TELEGRAM CHAT ═══════════ -->
+<h2>11. Sequence Diagram: Telegram Chat Preview</h2>
+<div class="diagram-box">
+<pre class="mermaid">
+sequenceDiagram
+    participant FE as 🖥️ Frontend
+    participant BE as ⚙️ Backend
+    participant Pi as 🍓 Raspberry Pi
+    participant TG as 📱 Telegram API
+
+    loop ทุก 5 วินาที (Polling)
+        FE->>BE: GET /api/pi/telegram/messages
+        alt Cache ยังใหม่ (< 3s)
+            BE-->>FE: ส่งจาก cache
+        else Cache หมดอายุ
+            BE->>Pi: SSH: curl getUpdates
+            Pi->>TG: Telegram Bot API getUpdates
+            TG-->>Pi: messages[]
+            Pi-->>BE: JSON messages
+            BE->>BE: mapTelegramMessage() + dedup
+            BE->>BE: บันทึกลง cache (max 100)
+            BE-->>FE: {messages, success}
+        end
+    end
+
+    FE->>FE: แสดง chat bubbles (iMessage style)
+
+    Note over FE,BE: รูปภาพ/ไฟล์ ดึงผ่าน proxy\nGET /api/pi/telegram/file/:fileId
+</pre>
+</div>
+
+<!-- ═══════════ 12. CACHING ═══════════ -->
+<h2>12. ระบบ Cache</h2>
+<div class="section">
+<table>
+  <tr><th>Cache</th><th>TTL</th><th>ขนาดสูงสุด</th><th>หน้าที่</th></tr>
+  <tr><td class="mono">telegramMsgCache</td><td>3 วินาที</td><td>100 ข้อความ</td><td>ป้องกันเรียก getUpdates ถี่เกินไป</td></tr>
+  <tr><td class="mono">telegramFilePathCache</td><td>5 นาที</td><td>ไม่จำกัด</td><td>Cache Telegram file path resolution</td></tr>
+  <tr><td class="mono">systemLogCache</td><td>8 วินาที</td><td>-</td><td>Cache journalctl error logs</td></tr>
+  <tr><td class="mono">ocrLogs</td><td>ไม่หมดอายุ</td><td>500 entries</td><td>In-memory OCR activity log</td></tr>
+</table>
+</div>
+
+<!-- ═══════════ 13. NETWORK ═══════════ -->
+<h2>13. Network & Ports</h2>
+<div class="section">
+<table>
+  <tr><th>Port</th><th>Service</th><th>หน้าที่</th></tr>
+  <tr><td>36148</td><td>Frontend (Vite)</td><td>Web UI</td></tr>
+  <tr><td>36149</td><td>Backend (Express + WS)</td><td>REST API + WebSocket</td></tr>
+  <tr><td>3306</td><td>MySQL</td><td>Database</td></tr>
+  <tr><td>22</td><td>SSH (via Tailscale VPN)</td><td>เชื่อมต่อ Raspberry Pi</td></tr>
+</table>
+<p style="margin-top:10px"><strong>การเชื่อมต่อ Pi:</strong> ใช้ Tailscale VPN (MagicDNS: <code class="mono">pipi4.tail72aff6.ts.net</code>) ทำให้เข้าถึง Pi ได้จากทุกที่โดยไม่ต้อง port forwarding</p>
+</div>
+
+<!-- ═══════════ 14. CRON ═══════════ -->
+<h2>14. Scheduled Tasks</h2>
+<div class="section">
+<table>
+  <tr><th>เวลา</th><th>Task</th><th>คำอธิบาย</th></tr>
+  <tr><td class="mono">0 2 * * *</td><td>Auto-delete old packages</td><td>ลบพัสดุที่เก่ากว่า 30 วัน (รวมรูปภาพ) ทุกวันตี 2</td></tr>
+  <tr><td class="mono">setInterval 3s</td><td>Pi Info Broadcast</td><td>SSH ไปดึง system info แล้ว broadcast ผ่าน WebSocket</td></tr>
+  <tr><td class="mono">setInterval 5s</td><td>Wi-Fi Scan</td><td>สแกน Wi-Fi อัตโนมัติ (เฉพาะหน้า /pi)</td></tr>
+  <tr><td class="mono">setInterval 5s</td><td>Telegram Polling</td><td>ดึงข้อความ Telegram ใหม่ (frontend)</td></tr>
+</table>
+</div>
+
+<div style="margin-top:40px;text-align:center;color:#8e8e93;font-size:10pt;">
+  <p>— End of Document —</p>
+  <p>Auto-generated by Tenant Management System · ${new Date().toLocaleString('th-TH')}</p>
+</div>
+
+<script>mermaid.initialize({startOnLoad:true,theme:'default',securityLevel:'loose',flowchart:{useMaxWidth:true},sequence:{useMaxWidth:true,showSequenceNumbers:false}});<\/script>
+</body>
+</html>`;
+}
 
 const loadVolume = async () => {
   try {
