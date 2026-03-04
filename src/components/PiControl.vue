@@ -1,287 +1,289 @@
 <template>
-  <div class="pi-control-page">
-    <div class="page-header">
-      <h1>🥧 จัดการ Raspberry Pi</h1>
-      <p class="subtitle">ควบคุมระบบ OCR บน Raspberry Pi</p>
+  <div class="settings-page">
+    <!-- Large Title -->
+    <div class="settings-nav">
+      <h1 class="settings-large-title">Raspberry Pi</h1>
+      <p class="settings-subtitle">ควบคุมระบบ OCR บน Raspberry Pi</p>
     </div>
 
-    <!-- Pi Info Card -->
-    <div class="info-card">
-      <h2>ข้อมูลระบบ</h2>
-      <div class="row g-3 align-items-start info-grid" v-if="piInfo">
-        <div class="info-item col-12 col-md-6">
-          <span class="info-label">⏱️ เวลาทำงาน</span>
-          <span class="info-value">{{ uptimeDisplay || piInfo.uptimeThai || piInfo.uptime || 'ไม่ทราบ' }}</span>
-        </div>
-        <div class="info-item col-12 col-md-6">
-          <span class="info-label">🌡️ อุณหภูมิ CPU</span>
-          <span class="info-value">{{ piInfo.cpuTemp || 'N/A' }}</span>
-        </div>
-        <div class="info-item col-12 col-md-6">
-          <span class="info-label">💾 หน่วยความจำ</span>
-          <span class="info-value" :title="formatMemoryTooltip(piInfo)">{{ piInfo.memoryDisplay || 'N/A' }}</span>
-          <small v-if="piInfo && piInfo.memoryUsage" class="memory-detail">
-            <span class="mem-col mem-left">{{ piInfo.memoryUsage.mb }}</span>
-            <span class="mem-col mem-right">{{ piInfo.memoryUsage.kb }}</span>
-          </small>
-        </div>
-        <div class="info-item col-12 col-md-6">
-          <span class="info-label">📡 สถานะบริการ OCR</span>
-          <div style="display:flex;align-items:center;gap:8px;">
-            <span class="info-value" :class="{ 'status-active': serviceStatus.isRunning, 'status-inactive': !serviceStatus.isRunning }">
-              {{ serviceStatus.isRunning ? '🟢 ทำงานอยู่' : '🔴 หยุดทำงาน' }}
-            </span>
-            <span :title="wsConnected ? 'WebSocket: connected' : 'WebSocket: disconnected'" style="font-size:0.9rem;color:#6b6b70">
-              {{ wsConnected ? 'WS: เชื่อมต่อ' : 'WS: ตัดการเชื่อมต่อ' }}
-            </span>
+    <!-- ─── System Info ─── -->
+    <div class="settings-group">
+      <div class="settings-group-label">ข้อมูลระบบ</div>
+      <div class="settings-list" v-if="piInfo">
+        <div class="settings-row">
+          <div class="row-icon orange"><span>⏱</span></div>
+          <div class="row-body">
+            <span class="row-title">เวลาทำงาน</span>
           </div>
+          <span class="row-detail">{{ uptimeDisplay || piInfo.uptimeThai || piInfo.uptime || 'ไม่ทราบ' }}</span>
+        </div>
+        <div class="settings-row">
+          <div class="row-icon red"><span>🌡</span></div>
+          <div class="row-body">
+            <span class="row-title">อุณหภูมิ CPU</span>
+          </div>
+          <span class="row-detail">{{ piInfo.cpuTemp || 'N/A' }}</span>
+        </div>
+        <div class="settings-row">
+          <div class="row-icon purple"><span>💾</span></div>
+          <div class="row-body">
+            <span class="row-title">หน่วยความจำ</span>
+            <span class="row-sub" :title="formatMemoryTooltip(piInfo)">{{ piInfo.memoryDisplay || 'N/A' }}</span>
+            <span v-if="piInfo && piInfo.memoryUsage" class="row-sub">{{ piInfo.memoryUsage.mb }} · {{ piInfo.memoryUsage.kb }}</span>
+          </div>
+          <span class="row-detail"></span>
+        </div>
+        <div class="settings-row">
+          <div class="row-icon green"><span>📡</span></div>
+          <div class="row-body">
+            <span class="row-title">สถานะบริการ OCR</span>
+            <span class="row-sub">{{ wsConnected ? 'WS: เชื่อมต่อ' : 'WS: ตัดการเชื่อมต่อ' }}</span>
+          </div>
+          <span class="row-detail" :class="serviceStatus.isRunning ? 'detail-on' : 'detail-off'">
+            {{ serviceStatus.isRunning ? 'ทำงานอยู่' : 'หยุดทำงาน' }}
+          </span>
         </div>
       </div>
-      <div v-else class="loading">
-        <span>กำลังโหลด...</span>
-      </div>
-    </div>
-
-
-    <!-- Speak Section -->
-    <div class="speak-section">
-      <h2>🔊 พูดข้อความ</h2>
-      <div class="speak-form">
-        <input 
-          v-model="speakText" 
-          type="text" 
-          placeholder="พิมพ์ข้อความที่ต้องการให้ Pi พูด..."
-          @keyup.enter="speakOnPi"
-          :disabled="loading"
-        />
-        <button @click="speakOnPi" class="btn-speak" :disabled="loading || !speakText.trim()">
-          🔊 พูด
-        </button>
-      </div>
-      <div class="quick-speak">
-        <span class="quick-label">พูดด่วน:</span>
-        <button @click="quickSpeak('สวัสดี')" class="quick-btn">สวัสดี</button>
-        <button @click="quickSpeak('มีพัสดุมาส่ง')" class="quick-btn">มีพัสดุมาส่ง</button>
-        <button @click="quickSpeak('พร้อมถ่ายแล้ว')" class="quick-btn">พร้อมถ่ายแล้ว</button>
-        <button @click="quickSpeak('ขอบคุณครับ')" class="quick-btn">ขอบคุณครับ</button>
-      </div>
-      <div class="telegram-test-row">
-        <button
-          @click="captureAndSendTelegram"
-          class="btn-capture-telegram"
-          :disabled="loading || captureSending"
-        >
-          {{ captureSending ? '📸 กำลังถ่ายและ OCR...' : '📸 ถ่ายแล้วส่ง Telegram' }}
-        </button>
-        <button
-          @click="testTelegramMessage"
-          class="btn-telegram-test"
-          :disabled="loading || telegramTesting"
-        >
-          {{ telegramTesting ? '⏳ กำลังส่ง...' : '📨 Test Telegram' }}
-        </button>
+      <div v-else class="settings-list">
+        <div class="settings-row-empty">กำลังโหลด...</div>
       </div>
     </div>
 
-    <!-- Telegram Chat Preview -->
-    <div class="telegram-chat-section">
-      <h2>💬 Telegram Chat Preview</h2>
-      <div class="chat-phone-frame">
-        <div class="chat-phone-header">
-          <span class="chat-group-icon">👥</span>
-          <div class="chat-group-info">
-            <span class="chat-group-name">Parcel Noti</span>
-            <span class="chat-group-status">{{ telegramWarning || `${telegramMessages.length} ข้อความ` }}</span>
-          </div>
-        </div>
-        <div class="chat-messages-area" ref="chatMessagesArea">
-          <div v-if="telegramChatLoading && telegramMessages.length === 0" class="chat-loading">
-            กำลังโหลดข้อความ...
-          </div>
-          <div v-else-if="telegramMessages.length === 0" class="chat-empty">
-            <p>📭 ยังไม่มีข้อความ</p>
-            <p class="chat-empty-hint">ลองส่งข้อความทดสอบ หรือรอสักครู่</p>
-          </div>
-          <template v-else>
-            <div
-              v-for="msg in telegramMessages"
-              :key="msg.id"
-              class="chat-bubble-wrap"
-              :class="isOutgoingMessage(msg) ? 'chat-bubble-outgoing' : 'chat-bubble-incoming'"
-            >
-              <div v-if="!isOutgoingMessage(msg)" class="chat-avatar">{{ getSenderInitial(msg.from?.name) }}</div>
-              <div class="chat-bubble">
-                <span v-if="!isOutgoingMessage(msg)" class="chat-sender">{{ msg.from?.name || 'Unknown' }}</span>
-                <span v-if="msg.media" class="chat-attachment">{{ getMediaLabel(msg.media) }}</span>
-
-                <img
-                  v-if="msg.media && isImageMedia(msg.media)"
-                  :src="msg.media.url"
-                  class="chat-media-image"
-                  alt="telegram media"
-                  loading="lazy"
-                />
-
-                <video
-                  v-else-if="msg.media && isVideoMedia(msg.media)"
-                  :src="msg.media.url"
-                  class="chat-media-video"
-                  controls
-                  preload="metadata"
-                ></video>
-
-                <audio
-                  v-else-if="msg.media && isAudioMedia(msg.media)"
-                  :src="msg.media.url"
-                  class="chat-media-audio"
-                  controls
-                  preload="none"
-                ></audio>
-
-                <a
-                  v-else-if="msg.media && isDocumentMedia(msg.media)"
-                  :href="msg.media.url"
-                  target="_blank"
-                  rel="noopener"
-                  class="chat-file-link"
-                >
-                  📄 {{ msg.media.fileName || 'เปิดไฟล์เอกสาร' }}
-                </a>
-
-                <div v-if="msg.location" class="chat-meta-box">
-                  📍 {{ msg.location.latitude }}, {{ msg.location.longitude }}
-                </div>
-
-                <div v-if="msg.venue" class="chat-meta-box">
-                  📌 {{ msg.venue.title }}<br />
-                  <small>{{ msg.venue.address }}</small>
-                </div>
-
-                <div v-if="msg.contact" class="chat-meta-box">
-                  👤 {{ [msg.contact.firstName, msg.contact.lastName].filter(Boolean).join(' ') || 'Contact' }}
-                  <br />
-                  <small>{{ msg.contact.phoneNumber }}</small>
-                </div>
-
-                <div v-if="msg.poll" class="chat-meta-box">
-                  🗳️ {{ msg.poll.question }}
-                </div>
-
-                <p v-if="msg.text" class="chat-text">{{ msg.text }}</p>
-                <p v-else-if="!msg.media && !msg.location && !msg.venue && !msg.contact && !msg.poll" class="chat-text">(ไม่มีข้อความ)</p>
-                <span class="chat-time">{{ formatChatTime(msg.date) }}</span>
-              </div>
-            </div>
-          </template>
-        </div>
-        <div class="chat-input-bar">
-          <input
-            v-model="chatInput"
-            type="text"
-            placeholder="พิมพ์ข้อความ..."
-            @keyup.enter="sendChatMessage"
-            :disabled="chatSending"
-            class="chat-input"
+    <!-- ─── Speak ─── -->
+    <div class="settings-group">
+      <div class="settings-group-label">พูดข้อความ</div>
+      <div class="settings-list">
+        <div class="settings-input-row">
+          <input 
+            v-model="speakText" 
+            type="text" 
+            placeholder="พิมพ์ข้อความที่ต้องการให้ Pi พูด..."
+            @keyup.enter="speakOnPi"
+            :disabled="loading"
           />
-          <button @click="sendChatMessage" class="chat-send-btn" :disabled="chatSending || !chatInput.trim()">
-            {{ chatSending ? '⏳' : '➤' }}
+          <button @click="speakOnPi" class="input-btn-primary" :disabled="loading || !speakText.trim()">
+            พูด
+          </button>
+        </div>
+        <div class="settings-chips-row">
+          <span class="chips-label">พูดด่วน</span>
+          <button @click="quickSpeak('สวัสดี')" class="chip">สวัสดี</button>
+          <button @click="quickSpeak('มีพัสดุมาส่ง')" class="chip">มีพัสดุมาส่ง</button>
+          <button @click="quickSpeak('พร้อมถ่ายแล้ว')" class="chip">พร้อมถ่ายแล้ว</button>
+          <button @click="quickSpeak('ขอบคุณครับ')" class="chip">ขอบคุณครับ</button>
+        </div>
+        <div class="settings-actions-row">
+          <button
+            @click="captureAndSendTelegram"
+            class="action-btn green-btn"
+            :disabled="loading || captureSending"
+          >
+            {{ captureSending ? '📸 กำลังถ่ายและ OCR...' : '📸 ถ่ายแล้วส่ง Telegram' }}
+          </button>
+          <button
+            @click="testTelegramMessage"
+            class="action-btn blue-btn"
+            :disabled="loading || telegramTesting"
+          >
+            {{ telegramTesting ? '⏳ กำลังส่ง...' : '📨 Test Telegram' }}
           </button>
         </div>
       </div>
     </div>
 
-    <!-- Volume Control Section -->
-    <div class="control-section">
-      <h2>🔊 ระดับเสียงพูด</h2>
-      <div class="volume-control">
-        <div class="volume-display">
-          <span class="volume-icon">{{ volume === 0 ? '🔇' : volume < 30 ? '🔈' : volume < 70 ? '🔉' : '🔊' }}</span>
-          <span class="volume-value">{{ volume }}%</span>
-        </div>
-        <input 
-          type="range" 
-          min="0" 
-          max="100" 
-          step="5" 
-          :value="volume" 
-          @input="updateVolume"
-          class="volume-slider"
-        />
-        <div class="volume-labels">
-          <span>0%</span>
-          <span>50%</span>
-          <span>100%</span>
+    <!-- ─── Telegram Chat ─── -->
+    <div class="settings-group">
+      <div class="settings-group-label">Telegram Chat</div>
+      <div class="settings-list no-padding">
+        <div class="chat-frame">
+          <div class="chat-header">
+            <div class="chat-header-icon">👥</div>
+            <div class="chat-header-body">
+              <span class="chat-header-name">Parcel Noti</span>
+              <span class="chat-header-status">{{ telegramWarning || `${telegramMessages.length} ข้อความ` }}</span>
+            </div>
+          </div>
+          <div class="chat-messages" ref="chatMessagesArea">
+            <div v-if="telegramChatLoading && telegramMessages.length === 0" class="chat-empty-state">
+              กำลังโหลดข้อความ...
+            </div>
+            <div v-else-if="telegramMessages.length === 0" class="chat-empty-state">
+              <p>📭 ยังไม่มีข้อความ</p>
+              <small>ลองส่งข้อความทดสอบ หรือรอสักครู่</small>
+            </div>
+            <template v-else>
+              <div
+                v-for="msg in telegramMessages"
+                :key="msg.id"
+                class="chat-bubble-wrap"
+                :class="isOutgoingMessage(msg) ? 'outgoing' : 'incoming'"
+              >
+                <div v-if="!isOutgoingMessage(msg)" class="chat-avatar">{{ getSenderInitial(msg.from?.name) }}</div>
+                <div class="chat-bubble">
+                  <span v-if="!isOutgoingMessage(msg)" class="chat-sender">{{ msg.from?.name || 'Unknown' }}</span>
+                  <span v-if="msg.media" class="chat-attachment">{{ getMediaLabel(msg.media) }}</span>
+                  <img
+                    v-if="msg.media && isImageMedia(msg.media)"
+                    :src="msg.media.url"
+                    class="chat-media-image"
+                    alt="telegram media"
+                    loading="lazy"
+                  />
+                  <video
+                    v-else-if="msg.media && isVideoMedia(msg.media)"
+                    :src="msg.media.url"
+                    class="chat-media-video"
+                    controls
+                    preload="metadata"
+                  ></video>
+                  <audio
+                    v-else-if="msg.media && isAudioMedia(msg.media)"
+                    :src="msg.media.url"
+                    class="chat-media-audio"
+                    controls
+                    preload="none"
+                  ></audio>
+                  <a
+                    v-else-if="msg.media && isDocumentMedia(msg.media)"
+                    :href="msg.media.url"
+                    target="_blank"
+                    rel="noopener"
+                    class="chat-file-link"
+                  >
+                    📄 {{ msg.media.fileName || 'เปิดไฟล์เอกสาร' }}
+                  </a>
+                  <div v-if="msg.location" class="chat-meta-box">
+                    📍 {{ msg.location.latitude }}, {{ msg.location.longitude }}
+                  </div>
+                  <div v-if="msg.venue" class="chat-meta-box">
+                    📌 {{ msg.venue.title }}<br />
+                    <small>{{ msg.venue.address }}</small>
+                  </div>
+                  <div v-if="msg.contact" class="chat-meta-box">
+                    👤 {{ [msg.contact.firstName, msg.contact.lastName].filter(Boolean).join(' ') || 'Contact' }}
+                    <br />
+                    <small>{{ msg.contact.phoneNumber }}</small>
+                  </div>
+                  <div v-if="msg.poll" class="chat-meta-box">
+                    🗳️ {{ msg.poll.question }}
+                  </div>
+                  <p v-if="msg.text" class="chat-text">{{ msg.text }}</p>
+                  <p v-else-if="!msg.media && !msg.location && !msg.venue && !msg.contact && !msg.poll" class="chat-text">(ไม่มีข้อความ)</p>
+                  <span class="chat-time">{{ formatChatTime(msg.date) }}</span>
+                </div>
+              </div>
+            </template>
+          </div>
+          <div class="chat-input-bar">
+            <input
+              v-model="chatInput"
+              type="text"
+              placeholder="พิมพ์ข้อความ..."
+              @keyup.enter="sendChatMessage"
+              :disabled="chatSending"
+            />
+            <button @click="sendChatMessage" :disabled="chatSending || !chatInput.trim()">
+              {{ chatSending ? '⏳' : '➤' }}
+            </button>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- Wi-Fi Config Section -->
-    <div class="wifi-section">
-      <h2>📶 ตั้งค่า Wi-Fi (Raspberry Pi)</h2>
-      <p class="wifi-current">เครือข่ายปัจจุบัน: <strong>{{ currentNetworkStatus }}</strong></p>
-      <p class="wifi-current" v-if="networkState.wifiConnected && networkState.lanConnected">
-        สถานะ: เชื่อมทั้ง LAN และ Wi‑Fi
-      </p>
-
-      <!-- Wi-Fi Scanner -->
-      <div class="wifi-scanner">
-        <div class="wifi-scanner-header">
-          <h3>เครือข่ายที่พบ <span v-if="scanning" class="scan-spinner-inline"></span></h3>
+    <!-- ─── Volume ─── -->
+    <div class="settings-group">
+      <div class="settings-group-label">ระดับเสียงพูด</div>
+      <div class="settings-list">
+        <div class="volume-row">
+          <span class="vol-icon">{{ volume === 0 ? '🔇' : volume < 30 ? '🔈' : volume < 70 ? '🔉' : '🔊' }}</span>
+          <input 
+            type="range" 
+            min="0" 
+            max="100" 
+            step="5" 
+            :value="volume" 
+            @input="updateVolume"
+            class="apple-slider"
+          />
+          <span class="vol-value">{{ volume }}%</span>
         </div>
+      </div>
+    </div>
 
-        <div v-if="scanning && wifiNetworks.length === 0" class="wifi-scanning-indicator">
-          <div class="scan-spinner"></div>
-          <span>กำลังค้นหาเครือข่าย Wi-Fi...</span>
-        </div>
-
-        <div v-if="wifiNetworks.length > 0" class="wifi-list">
-          <div
-            v-for="network in wifiNetworks"
-            :key="network.bssid || network.ssid"
-            class="wifi-item"
-            :class="{ 'wifi-item-active': network.inUse }"
-            @click="onNetworkClick(network)"
-          >
-            <div class="wifi-item-left">
-              <div class="wifi-signal-bars" :title="`สัญญาณ: ${network.signal}%`">
-                <div class="signal-bar" :class="{ active: network.signal >= 10 }"></div>
-                <div class="signal-bar" :class="{ active: network.signal >= 30 }"></div>
-                <div class="signal-bar" :class="{ active: network.signal >= 55 }"></div>
-                <div class="signal-bar" :class="{ active: network.signal >= 80 }"></div>
-              </div>
-              <div class="wifi-item-info">
-                <span class="wifi-ssid">{{ network.ssid }}</span>
-                <span class="wifi-detail">{{ network.security !== 'Open' ? '🔒' : '🔓' }} {{ network.security }} · {{ network.signal }}%</span>
-              </div>
-            </div>
-            <div class="wifi-item-right">
-              <span v-if="network.inUse" class="wifi-connected-badge">✓ เชื่อมต่ออยู่</span>
-              <span v-else class="wifi-connect-hint">แตะเพื่อเชื่อมต่อ</span>
-            </div>
+    <!-- ─── Wi-Fi ─── -->
+    <div class="settings-group">
+      <div class="settings-group-label">Wi-Fi</div>
+      <div class="settings-list">
+        <div class="settings-row">
+          <div class="row-icon blue"><span>📶</span></div>
+          <div class="row-body">
+            <span class="row-title">เครือข่ายปัจจุบัน</span>
           </div>
+          <span class="row-detail">{{ currentNetworkStatus }}</span>
         </div>
-
-        <div v-else-if="scanAttempted" class="wifi-no-results">
-          <p>ไม่พบเครือข่าย Wi-Fi</p>
-          <p class="wifi-no-hint">ลองกดสแกนอีกครั้ง</p>
+        <div v-if="networkState.wifiConnected && networkState.lanConnected" class="settings-row">
+          <div class="row-icon teal"><span>🔗</span></div>
+          <div class="row-body">
+            <span class="row-title">สถานะ</span>
+          </div>
+          <span class="row-detail">เชื่อมทั้ง LAN และ Wi‑Fi</span>
         </div>
       </div>
 
-      <!-- Connect Dialog (shown when clicking a network) -->
-      <div v-if="connectDialog.show" class="wifi-connect-overlay" @click.self="closeConnectDialog">
-        <div class="wifi-connect-dialog">
-          <div class="dialog-header">
-            <h3>เชื่อมต่อ "{{ connectDialog.ssid }}"</h3>
-            <button class="dialog-close" @click="closeConnectDialog">✕</button>
+      <!-- Networks found -->
+      <div class="settings-group-label" style="margin-top:24px">
+        เครือข่ายที่พบ
+        <span v-if="scanning" class="scan-spinner-sm"></span>
+      </div>
+      <div class="settings-list">
+        <div v-if="scanning && wifiNetworks.length === 0" class="settings-row-empty">
+          <span class="scan-spinner-md"></span>
+          กำลังค้นหาเครือข่าย Wi-Fi...
+        </div>
+        <template v-if="wifiNetworks.length > 0">
+          <div
+            v-for="network in wifiNetworks"
+            :key="network.bssid || network.ssid"
+            class="settings-row clickable"
+            :class="{ 'row-connected': network.inUse }"
+            @click="onNetworkClick(network)"
+          >
+            <div class="wifi-signal" :title="`สัญญาณ: ${network.signal}%`">
+              <div class="signal-bar" :class="{ active: network.signal >= 10 }"></div>
+              <div class="signal-bar" :class="{ active: network.signal >= 30 }"></div>
+              <div class="signal-bar" :class="{ active: network.signal >= 55 }"></div>
+              <div class="signal-bar" :class="{ active: network.signal >= 80 }"></div>
+            </div>
+            <div class="row-body">
+              <span class="row-title">{{ network.ssid }}</span>
+              <span class="row-sub">{{ network.security !== 'Open' ? '🔒' : '🔓' }} {{ network.security }} · {{ network.signal }}%</span>
+            </div>
+            <span class="row-detail">
+              <span v-if="network.inUse" class="detail-on">✓</span>
+              <span v-else class="detail-chevron">›</span>
+            </span>
           </div>
-          <div class="dialog-body">
-            <div class="dialog-network-info">
+        </template>
+        <div v-else-if="scanAttempted && wifiNetworks.length === 0" class="settings-row-empty">
+          ไม่พบเครือข่าย Wi-Fi
+        </div>
+      </div>
+
+      <!-- Connect Dialog -->
+      <div v-if="connectDialog.show" class="overlay" @click.self="closeConnectDialog">
+        <div class="apple-dialog">
+          <div class="apple-dialog-head">
+            <h3>เชื่อมต่อ "{{ connectDialog.ssid }}"</h3>
+            <button class="dialog-x" @click="closeConnectDialog">✕</button>
+          </div>
+          <div class="apple-dialog-content">
+            <div class="dialog-meta">
               <span>🔒 {{ connectDialog.security }}</span>
               <span>📶 สัญญาณ {{ connectDialog.signal }}%</span>
             </div>
-            <div v-if="connectDialog.security !== 'Open'" class="dialog-password-field">
+            <div v-if="connectDialog.security !== 'Open'" class="dialog-field">
               <label>รหัสผ่าน Wi-Fi</label>
-              <div class="password-input-wrap">
+              <div class="pw-input-wrap">
                 <input
                   ref="connectPasswordInput"
                   v-model="connectDialog.password"
@@ -290,106 +292,120 @@
                   @keyup.enter="connectToNetwork"
                   :disabled="connectDialog.connecting"
                 />
-                <button class="toggle-password" @click="connectDialog.showPassword = !connectDialog.showPassword">
+                <button class="pw-toggle" @click="connectDialog.showPassword = !connectDialog.showPassword">
                   {{ connectDialog.showPassword ? '🙈' : '👁️' }}
                 </button>
               </div>
             </div>
           </div>
-          <div class="dialog-footer">
-            <button class="btn-dialog-cancel" @click="closeConnectDialog" :disabled="connectDialog.connecting">ยกเลิก</button>
+          <div class="apple-dialog-actions">
+            <button class="dlg-btn secondary" @click="closeConnectDialog" :disabled="connectDialog.connecting">ยกเลิก</button>
             <button
-              class="btn-dialog-connect"
+              class="dlg-btn primary"
               @click="connectToNetwork"
               :disabled="connectDialog.connecting || (connectDialog.security !== 'Open' && !connectDialog.password.trim())"
             >
-              {{ connectDialog.connecting ? '🔄 กำลังเชื่อมต่อ...' : '📶 เชื่อมต่อ' }}
+              {{ connectDialog.connecting ? 'กำลังเชื่อมต่อ...' : 'เชื่อมต่อ' }}
             </button>
           </div>
         </div>
       </div>
 
-      <!-- Manual Wi-Fi form (hidden behind toggle) -->
-      <div class="wifi-manual-toggle">
-        <button class="btn-manual-toggle" @click="showManualWifi = !showManualWifi">
-          {{ showManualWifi ? '▲ ซ่อนฟอร์มกรอกเอง' : '▼ กรอก SSID เอง (เครือข่ายที่ซ่อน)' }}
-        </button>
+      <!-- Manual Wi-Fi -->
+      <button class="settings-text-btn" @click="showManualWifi = !showManualWifi">
+        {{ showManualWifi ? '▲ ซ่อนฟอร์มกรอกเอง' : '▼ กรอก SSID เอง (เครือข่ายที่ซ่อน)' }}
+      </button>
+      <div v-if="showManualWifi" class="settings-list" style="margin-top:8px">
+        <div class="settings-input-row">
+          <input v-model="wifiSsid" type="text" placeholder="ชื่อ Wi-Fi (SSID)" :disabled="loading" />
+        </div>
+        <div class="settings-input-row">
+          <input v-model="wifiPassword" type="password" placeholder="รหัสผ่าน Wi-Fi" :disabled="loading" />
+        </div>
+        <div class="settings-actions-row">
+          <button
+            @click="applyWifiConfig"
+            class="action-btn blue-btn"
+            :disabled="loading || !wifiSsid.trim() || !wifiPassword.trim() || !wsConnected || !serviceStatus.isRunning"
+          >
+            💾 บันทึก Wi-Fi
+          </button>
+        </div>
       </div>
-      <div v-if="showManualWifi" class="wifi-form">
-        <input
-          v-model="wifiSsid"
-          type="text"
-          placeholder="ชื่อ Wi-Fi (SSID)"
-          :disabled="loading"
-        />
-        <input
-          v-model="wifiPassword"
-          type="password"
-          placeholder="รหัสผ่าน Wi-Fi"
-          :disabled="loading"
-        />
-        <button
-          @click="applyWifiConfig"
-          class="btn-wifi"
-          :disabled="loading || !wifiSsid.trim() || !wifiPassword.trim() || !wsConnected || !serviceStatus.isRunning"
-        >
-          💾 บันทึก Wi-Fi
-        </button>
-      </div>
-      <p class="wifi-hint" v-if="!wsConnected || !serviceStatus.isRunning">
+      <p class="settings-footnote" v-if="!wsConnected || !serviceStatus.isRunning">
         ต้องอยู่ในสถานะ "ทำงานอยู่" และ "WS: เชื่อมต่อ" ก่อนจึงจะเปลี่ยน Wi-Fi ได้
       </p>
-      <div class="network-switch" v-if="networkState.wifiConnected && networkState.lanConnected">
-        <label for="prefer-network">เลือกเส้นทางใช้งาน:</label>
-        <select id="prefer-network" v-model="preferredTarget" :disabled="isSwitchingNetwork || !wsConnected || !serviceStatus.isRunning" @change="switchPreferredNetwork">
-          <option value="wifi">ใช้ Wi‑Fi ({{ networkState.wifiName || 'wlan0' }})</option>
-          <option value="lan">ใช้ LAN ({{ networkState.lanName || 'eth0' }})</option>
-        </select>
+      <div class="settings-list" style="margin-top:12px" v-if="networkState.wifiConnected && networkState.lanConnected">
+        <div class="settings-row">
+          <div class="row-body">
+            <span class="row-title">เลือกเส้นทางใช้งาน</span>
+          </div>
+          <select class="row-select" v-model="preferredTarget" :disabled="isSwitchingNetwork || !wsConnected || !serviceStatus.isRunning" @change="switchPreferredNetwork">
+            <option value="wifi">Wi‑Fi ({{ networkState.wifiName || 'wlan0' }})</option>
+            <option value="lan">LAN ({{ networkState.lanName || 'eth0' }})</option>
+          </select>
+        </div>
       </div>
     </div>
 
-    <!-- GCP Credential Management -->
-    <div class="credential-section">
-      <h2>🔑 Google Cloud Credential</h2>
-      <div class="credential-status" v-if="credentialInfo">
-        <div class="credential-row">
-          <span class="credential-label">📧 Service Account</span>
-          <span class="credential-value">{{ credentialInfo.clientEmail || 'N/A' }}</span>
+    <!-- ─── Credentials ─── -->
+    <div class="settings-group">
+      <div class="settings-group-label">Google Cloud Credential</div>
+      <div class="settings-list" v-if="credentialInfo">
+        <div class="settings-row">
+          <div class="row-icon blue"><span>📧</span></div>
+          <div class="row-body">
+            <span class="row-title">Service Account</span>
+          </div>
+          <span class="row-detail mono">{{ credentialInfo.clientEmail || 'N/A' }}</span>
         </div>
-        <div class="credential-row">
-          <span class="credential-label">📁 Project</span>
-          <span class="credential-value">{{ credentialInfo.projectId || 'N/A' }}</span>
+        <div class="settings-row">
+          <div class="row-icon indigo"><span>📁</span></div>
+          <div class="row-body">
+            <span class="row-title">Project</span>
+          </div>
+          <span class="row-detail mono">{{ credentialInfo.projectId || 'N/A' }}</span>
         </div>
-        <div class="credential-row">
-          <span class="credential-label">🔑 Key ID</span>
-          <span class="credential-value">{{ credentialInfo.keyId || 'N/A' }}</span>
+        <div class="settings-row">
+          <div class="row-icon yellow"><span>🔑</span></div>
+          <div class="row-body">
+            <span class="row-title">Key ID</span>
+          </div>
+          <span class="row-detail mono">{{ credentialInfo.keyId || 'N/A' }}</span>
         </div>
-        <div class="credential-row">
-          <span class="credential-label">📅 แก้ไขล่าสุด</span>
-          <span class="credential-value">{{ credentialInfo.lastModified ? new Date(credentialInfo.lastModified).toLocaleString('th-TH') : 'N/A' }}</span>
+        <div class="settings-row">
+          <div class="row-icon gray"><span>📅</span></div>
+          <div class="row-body">
+            <span class="row-title">แก้ไขล่าสุด</span>
+          </div>
+          <span class="row-detail">{{ credentialInfo.lastModified ? new Date(credentialInfo.lastModified).toLocaleString('th-TH') : 'N/A' }}</span>
         </div>
-        <div class="credential-row">
-          <span class="credential-label">✅ สถานะ API</span>
-          <span class="credential-value" :class="{ 'api-valid': credentialInfo.apiValid, 'api-invalid': credentialInfo.apiValid === false }">
-            {{ credentialInfo.apiValid === undefined ? '⏳ กำลังตรวจสอบ...' : credentialInfo.apiValid ? '✅ ใช้งานได้' : '❌ ใช้งานไม่ได้' }}
+        <div class="settings-row">
+          <div class="row-icon" :class="credentialInfo.apiValid ? 'green' : credentialInfo.apiValid === false ? 'red' : 'gray'">
+            <span>{{ credentialInfo.apiValid ? '✓' : credentialInfo.apiValid === false ? '✕' : '…' }}</span>
+          </div>
+          <div class="row-body">
+            <span class="row-title">สถานะ API</span>
+          </div>
+          <span class="row-detail" :class="{ 'detail-on': credentialInfo.apiValid, 'detail-off': credentialInfo.apiValid === false }">
+            {{ credentialInfo.apiValid === undefined ? 'กำลังตรวจสอบ...' : credentialInfo.apiValid ? 'ใช้งานได้' : 'ใช้งานไม่ได้' }}
           </span>
         </div>
-        <div v-if="credentialInfo.apiError" class="credential-error">
-          ⚠️ {{ credentialInfo.apiError }}
-        </div>
-        <div v-if="credentialError" class="credential-error">
-          ⚠️ {{ credentialError }}
-        </div>
       </div>
-      <div v-else class="loading">
-        <span>กำลังโหลด...</span>
+      <div v-else class="settings-list">
+        <div class="settings-row-empty">กำลังโหลด...</div>
+      </div>
+      <div v-if="credentialInfo?.apiError || credentialError" class="settings-alert">
+        ⚠️ {{ credentialInfo?.apiError || credentialError }}
       </div>
 
-      <div class="credential-upload">
-        <div class="credential-help-wrap">
-          <span class="credential-help-label">วิธีสร้าง Service Account / Key</span>
-          <span class="credential-help-trigger" tabindex="0" aria-label="วิธีสร้าง Service Account และ JSON Key">?</span>
-          <div class="credential-help-popover">
+      <!-- Upload -->
+      <div class="settings-group-label" style="margin-top:24px">อัปเดต Credential</div>
+      <div class="settings-list">
+        <div class="settings-help-row">
+          <span class="help-label">วิธีสร้าง Service Account / Key</span>
+          <span class="help-trigger" tabindex="0" aria-label="วิธีสร้าง Service Account และ JSON Key">?</span>
+          <div class="help-popover">
             <p><strong>ขั้นตอนสร้าง (Tenant Manager)</strong></p>
             <ol>
               <li>Service Accounts → Create service account</li>
@@ -404,27 +420,27 @@
         </div>
         <p class="credential-hint">
           วาง JSON ของ Service Account Key ใหม่ที่นี่ (ดาวน์โหลดจาก
-          <a href="https://console.cloud.google.com/iam-admin/serviceaccounts" target="_blank" rel="noopener">Google Cloud Console</a>
-          → เลือก Service Account → Keys → Add Key → JSON)
+          <a href="https://console.cloud.google.com/iam-admin/serviceaccounts" target="_blank" rel="noopener">Google Cloud Console</a>)
         </p>
-        <textarea
-          v-model="credentialJson"
-          class="credential-textarea"
-          placeholder='วาง JSON credential ที่นี่... { "type": "service_account", ... }'
-          rows="6"
-          :disabled="credentialUploading"
-        ></textarea>
-        <div class="credential-actions">
+        <div class="settings-textarea-wrap">
+          <textarea
+            v-model="credentialJson"
+            placeholder='วาง JSON credential ที่นี่... { "type": "service_account", ... }'
+            rows="5"
+            :disabled="credentialUploading"
+          ></textarea>
+        </div>
+        <div class="settings-actions-row">
           <button
             @click="uploadCredential"
-            class="btn-credential-upload"
+            class="action-btn blue-btn"
             :disabled="credentialUploading || !credentialJson.trim()"
           >
-            {{ credentialUploading ? '🔄 กำลังอัปโหลด...' : '⬆️ อัปเดต Credential' }}
+            {{ credentialUploading ? '⏳ กำลังอัปโหลด...' : '⬆️ อัปเดต Credential' }}
           </button>
           <button
             @click="clearInbox"
-            class="btn-clear-inbox"
+            class="action-btn danger-btn"
             :disabled="credentialUploading"
           >
             🗑️ ล้างรูปค้าง
@@ -433,35 +449,24 @@
       </div>
     </div>
 
-    <!-- Logs Section -->
-    <div class="logs-section">
-      <div class="logs-header">
-        <h2>📋 OCR Logs (Realtime)</h2>
+    <!-- ─── Logs ─── -->
+    <div class="settings-group">
+      <div class="settings-group-label">OCR Logs (Realtime)</div>
+      <div class="log-toolbar">
         <button 
           @click="toggleAutoScroll" 
-          class="log-control-btn"
+          class="log-pill"
           :class="{ active: autoScroll }"
         >
           {{ autoScroll ? '📌 Auto Scroll ON' : '📌 Auto Scroll OFF' }}
         </button>
-        <button 
-          @click="clearLogs" 
-          class="log-control-btn"
-        >
-          🗑️ Clear
-        </button>
-        <button 
-          @click="refreshLogs" 
-          class="log-control-btn"
-          :disabled="loading"
-        >
-          🔄 Refresh
-        </button>
+        <button @click="clearLogs" class="log-pill">🗑️ Clear</button>
+        <button @click="refreshLogs" class="log-pill" :disabled="loading">🔄 Refresh</button>
       </div>
-      <div class="logs-container" ref="logsContainer">
-        <div v-if="!logs.length" class="logs-empty">
+      <div class="log-terminal" ref="logsContainer">
+        <div v-if="!logs.length" class="log-empty">
           <p>ยังไม่มี log สำหรับแสดง</p>
-          <p class="logs-hint">กดปุ่ม Refresh เพื่อดึง log ล่าสุด</p>
+          <small>กดปุ่ม Refresh เพื่อดึง log ล่าสุด</small>
         </div>
         <div v-else>
           <div 
@@ -477,15 +482,15 @@
               'log-skip': log.message.includes('[DUPLICATE]') || log.message.includes('Skipping')
             }"
           >
-            <span class="log-time">{{ log.time }}</span>
-            <span class="log-message">{{ log.message }}</span>
+            <span class="log-ts">{{ log.time }}</span>
+            <span class="log-msg">{{ log.message }}</span>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Status Message -->
-    <div v-if="message" class="status-message" :class="messageType">
+    <!-- Status Toast -->
+    <div v-if="message" class="settings-toast" :class="messageType">
       {{ message }}
     </div>
   </div>
@@ -1269,1024 +1274,481 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.memory-detail {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px 16px;
-  margin-top: 6px;
-  color: #8b8b90;
-  font-size: 12px;
-  max-width: 260px; /* keep columns compact */
-  align-items: center;
-}
+/* ================================================================
+   Apple iOS Settings Design System
+   ================================================================ */
 
-.memory-detail .mem-col {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.memory-detail .mem-left {
-  text-align: left;
-}
-
-.memory-detail .mem-right {
-  text-align: right;
-  color: #6b6b70;
-  font-variant-numeric: tabular-nums;
-}
-.pi-control-page {
-  max-width: 800px;
+/* Page */
+.settings-page {
+  max-width: 680px;
   margin: 0 auto;
-  padding: 20px;
+  padding: 0 16px 40px;
+  min-height: 100vh;
 }
 
-.page-header {
-  text-align: center;
-  margin-bottom: 30px;
+/* Nav / Large Title */
+.settings-nav {
+  padding: 12px 0 8px;
+  margin-bottom: 6px;
 }
 
-.page-header h1 {
-  font-size: 2rem;
-  margin-bottom: 10px;
-  color: #1d1d1f;
-}
-
-.subtitle {
-  color: #86868b;
-  font-size: 1.1rem;
-}
-
-.info-card {
-  background: white;
-  border-radius: 18px;
-  padding: 24px;
-  margin-bottom: 24px;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-}
-
-.info-card h2 {
-  margin-top: 0;
-  margin-bottom: 20px;
-  color: #1d1d1f;
-  font-size: 1.3rem;
-}
-
-/* Using Bootstrap grid for .info-grid (row + col classes) */
-/* No custom grid needed here; Bootstrap handles column layout. */
-
-/* Apple-style tooltip for buttons */
-[data-tooltip] {
-  position: relative;
-}
-[data-tooltip]:hover::after,
-[data-tooltip]:focus::after {
-  opacity: 1;
-  transform: translateY(0);
-  visibility: visible;
-}
-[data-tooltip]::after {
-  content: attr(data-tooltip);
-  position: absolute;
-  bottom: calc(100% + 10px);
-  left: 50%;
-  transform: translateX(-50%) translateY(6px);
-  background: rgba(60,60,67,0.95);
-  color: #fff;
-  padding: 8px 12px;
-  border-radius: 10px;
-  font-size: 13px;
-  line-height: 1.3;
-  white-space: nowrap;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.25);
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 160ms cubic-bezier(.2,.8,.2,1), transform 160ms cubic-bezier(.2,.8,.2,1);
-  z-index: 50;
-}
-[data-tooltip]::before {
-  content: '';
-  position: absolute;
-  bottom: calc(100% + 4px);
-  left: 50%;
-  transform: translateX(-50%);
-  border: 6px solid transparent;
-  border-top-color: rgba(60,60,67,0.95);
-  z-index: 51;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 160ms;
-}
-[data-tooltip]:hover::before,
-[data-tooltip]:focus::before {
-  opacity: 1;
-  visibility: visible;
-}
-
-/* Ensure tooltip works on focus for keyboard users */
-[data-tooltip]:focus {
-  outline: none;
-}
-
-.info-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.info-label {
-  color: #86868b;
-  font-size: 0.9rem;
-}
-
-.info-value {
-  font-size: 1.1rem;
-  font-weight: 500;
-  color: #1d1d1f;
-}
-
-.status-active {
-  color: #34c759 !important;
-}
-
-.status-inactive {
-  color: #ff3b30 !important;
-}
-
-.loading {
-  text-align: center;
-  padding: 20px;
-  color: #86868b;
-}
-
-.btn-refresh {
-  background: #f5f5f7;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 12px;
-  cursor: pointer;
-  font-size: 0.95rem;
-  transition: all 0.2s;
-}
-
-.btn-refresh:hover:not(:disabled) {
-  background: #e8e8ed;
-}
-
-.btn-refresh:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.control-section {
-  background: white;
-  border-radius: 18px;
-  padding: 24px;
-  margin-bottom: 24px;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-}
-
-.control-section h2 {
-  margin-top: 0;
-  margin-bottom: 20px;
-  color: #1d1d1f;
-  font-size: 1.3rem;
-}
-
-/* Control buttons were removed per request. Styles kept minimal. */
-
-.speak-section {
-  background: white;
-  border-radius: 18px;
-  padding: 24px;
-  margin-bottom: 24px;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-}
-
-.speak-section h2 {
-  margin-top: 0;
-  margin-bottom: 20px;
-  color: #1d1d1f;
-  font-size: 1.3rem;
-}
-
-.speak-form {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.speak-form input {
-  flex: 1;
-  padding: 12px 16px;
-  border: 1px solid #d2d2d7;
-  border-radius: 12px;
-  font-size: 1rem;
-  outline: none;
-  transition: border-color 0.2s;
-}
-
-.speak-form input:focus {
-  border-color: #007aff;
-}
-
-.btn-speak {
-  background: #007aff;
-  color: white;
-  border: none;
-  padding: 12px 24px;
-  border-radius: 12px;
-  cursor: pointer;
-  font-size: 1rem;
-  font-weight: 500;
-  transition: all 0.2s;
-}
-
-.btn-speak:hover:not(:disabled) {
-  background: #0056b3;
-}
-
-.btn-speak:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.quick-speak {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-}
-
-.quick-label {
-  color: #86868b;
-  font-size: 0.9rem;
-}
-
-.quick-btn {
-  background: #f5f5f7;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 20px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: all 0.2s;
-}
-
-.quick-btn:hover {
-  background: #e8e8ed;
-}
-
-.telegram-test-row {
-  margin-top: 14px;
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.btn-capture-telegram {
-  background: #34c759;
-  color: #fff;
-  border: none;
-  padding: 10px 18px;
-  border-radius: 10px;
-  cursor: pointer;
-  font-size: 0.92rem;
-  font-weight: 600;
-  transition: all 0.2s;
-}
-
-.btn-capture-telegram:hover:not(:disabled) {
-  background: #2ea94f;
-}
-
-.btn-capture-telegram:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-telegram-test {
-  background: #229ed9;
-  color: #fff;
-  border: none;
-  padding: 10px 18px;
-  border-radius: 10px;
-  cursor: pointer;
-  font-size: 0.92rem;
-  font-weight: 600;
-  transition: all 0.2s;
-}
-
-.btn-telegram-test:hover:not(:disabled) {
-  background: #178bc0;
-}
-
-.btn-telegram-test:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* ─── Telegram Chat Preview ───────────────────────────────────── */
-.telegram-chat-section {
-  background: white;
-  border-radius: 18px;
-  padding: 24px;
-  margin-bottom: 24px;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-}
-
-.telegram-chat-section h2 {
-  margin-top: 0;
-  margin-bottom: 16px;
-  color: #1d1d1f;
-  font-size: 1.3rem;
-}
-
-.chat-phone-frame {
-  border: 1px solid #e5e5ea;
-  border-radius: 16px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  max-height: 520px;
-  background: #15192a;
-}
-
-.chat-phone-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
-  background: linear-gradient(180deg, #2c3149 0%, #24283c 100%);
-  color: #fff;
-  flex-shrink: 0;
-}
-
-.chat-group-icon {
-  font-size: 1.5rem;
-  background: rgba(255,255,255,0.2);
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.chat-group-info {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.chat-group-name {
-  font-weight: 600;
-  font-size: 1rem;
-}
-
-.chat-group-status {
-  font-size: 0.75rem;
-  opacity: 0.85;
-  color: #b9bfd6;
-}
-
-.chat-refresh-btn {
-  background: rgba(255,255,255,0.18);
-  border: none;
-  color: #fff;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  cursor: pointer;
-  font-size: 1rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.2s;
-}
-
-.chat-refresh-btn:hover:not(:disabled) {
-  background: rgba(255,255,255,0.3);
-}
-
-.chat-refresh-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.spin-icon {
-  display: inline-block;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-.chat-messages-area {
-  flex: 1;
-  overflow-y: auto;
-  padding: 14px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-height: 200px;
-  max-height: 380px;
-  background: #111426 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Cg fill='none' stroke='%23353b5d' stroke-opacity='.3'%3E%3Ccircle cx='12' cy='12' r='4'/%3E%3Ccircle cx='60' cy='24' r='5'/%3E%3Cpath d='M24 56c8-6 16-6 24 0'/%3E%3Cpath d='M8 44h10'/%3E%3Cpath d='M66 56h8'/%3E%3C/g%3E%3C/svg%3E");
-}
-
-.chat-loading,
-.chat-empty {
-  text-align: center;
-  padding: 40px 16px;
-  color: #aeb4cb;
-}
-
-.chat-empty-hint {
-  font-size: 0.8rem;
-  margin-top: 4px;
-  opacity: 0.7;
-}
-
-.chat-bubble-wrap {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-}
-
-.chat-bubble-incoming {
-  justify-content: flex-start;
-}
-
-.chat-bubble-outgoing {
-  justify-content: flex-end;
-}
-
-.chat-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: #5d76ff;
-  color: #fff;
+.settings-large-title {
+  font-size: 34px;
   font-weight: 700;
-  font-size: 0.85rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.chat-bubble {
-  max-width: 80%;
-  padding: 8px 12px;
-  border-radius: 12px;
-  position: relative;
-  word-break: break-word;
-  box-shadow: 0 1px 1px rgba(0,0,0,0.08);
-}
-
-.chat-bubble-incoming .chat-bubble {
-  background: #2b2340;
-  border-bottom-left-radius: 4px;
-  color: #f3f0ff;
-}
-
-.chat-bubble-outgoing .chat-bubble {
-  background: #3c63ff;
-  border-bottom-right-radius: 4px;
-  color: #fff;
-}
-
-.chat-sender {
-  display: block;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #d7c9ff;
-  margin-bottom: 2px;
-}
-
-.chat-attachment {
-  display: inline-block;
-  font-size: 0.8rem;
-  color: #d8d7df;
-  margin-bottom: 2px;
-}
-
-.chat-media-image,
-.chat-media-video {
-  width: 100%;
-  max-width: 260px;
-  border-radius: 10px;
-  margin: 6px 0;
-  display: block;
-  background: #f2f2f7;
-}
-
-.chat-media-audio {
-  width: 100%;
-  max-width: 260px;
-  margin: 6px 0;
-}
-
-.chat-file-link {
-  display: inline-block;
-  margin: 6px 0;
-  padding: 6px 10px;
-  border-radius: 10px;
-  background: #f2f2f7;
-  color: #1d1d1f;
-  text-decoration: none;
-  font-size: 0.84rem;
-}
-
-.chat-file-link:hover {
-  text-decoration: underline;
-}
-
-.chat-meta-box {
-  margin: 6px 0;
-  padding: 8px 10px;
-  border-radius: 10px;
-  background: rgba(0, 0, 0, 0.05);
-  font-size: 0.82rem;
-  line-height: 1.35;
-}
-
-.chat-text {
+  letter-spacing: 0.01em;
+  color: #000;
   margin: 0;
-  font-size: 0.9rem;
-  line-height: 1.4;
-  color: inherit;
-  white-space: pre-wrap;
+  line-height: 1.18;
 }
 
-.chat-time {
-  display: block;
-  text-align: right;
-  font-size: 0.68rem;
-  color: rgba(255, 255, 255, 0.72);
-  margin-top: 2px;
+.settings-subtitle {
+  margin: 4px 0 0;
+  font-size: 15px;
+  color: var(--apple-gray-1, #8E8E93);
+  font-weight: 400;
 }
 
-.chat-input-bar {
+/* ─── Group ─── */
+.settings-group {
+  margin-bottom: 28px;
+}
+
+.settings-group-label {
+  font-size: 13px;
+  font-weight: 400;
+  color: #6e6e73;
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
+  padding: 0 16px 6px;
   display: flex;
-  gap: 8px;
-  padding: 10px 12px;
-  background: #f0f0f0;
-  border-top: 1px solid #d1d1d6;
-  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
 }
 
-.chat-input {
-  flex: 1;
-  border: 1px solid #d1d1d6;
-  border-radius: 20px;
-  padding: 8px 16px;
-  font-size: 0.9rem;
-  outline: none;
+/* ─── List (white card) ─── */
+.settings-list {
   background: #fff;
-  transition: border-color 0.2s;
-}
-
-.chat-input:focus {
-  border-color: #229ed9;
-}
-
-.chat-send-btn {
-  background: #229ed9;
-  color: #fff;
-  border: none;
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  cursor: pointer;
-  font-size: 1.1rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.2s;
-  flex-shrink: 0;
-}
-
-.chat-send-btn:hover:not(:disabled) {
-  background: #178bc0;
-}
-
-.chat-send-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-/* Volume Control */
-.volume-control {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 16px;
-  background: #f5f5f7;
-  border-radius: 12px;
-}
-
-.volume-display {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  font-size: 1.2rem;
-  font-weight: 600;
-  color: #1d1d1f;
-}
-
-.volume-icon {
-  font-size: 1.8rem;
-}
-
-.volume-value {
-  min-width: 60px;
-  text-align: center;
-}
-
-.volume-slider {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 100%;
-  height: 8px;
-  border-radius: 4px;
-  background: linear-gradient(to right, 
-    #d1f2d1 0%, 
-    #34c759 50%, 
-    #007aff 100%);
-  outline: none;
-  cursor: pointer;
-}
-
-.volume-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: white;
-  border: 3px solid #007aff;
-  cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-  transition: all 0.2s;
-}
-
-.volume-slider::-webkit-slider-thumb:hover {
-  transform: scale(1.1);
-  box-shadow: 0 3px 12px rgba(0,0,0,0.3);
-}
-
-.volume-slider::-moz-range-thumb {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: white;
-  border: 3px solid #007aff;
-  cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-  transition: all 0.2s;
-}
-
-.volume-slider::-moz-range-thumb:hover {
-  transform: scale(1.1);
-  box-shadow: 0 3px 12px rgba(0,0,0,0.3);
-}
-
-.volume-labels {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.85rem;
-  color: #86868b;
-  padding: 0 4px;
-}
-
-.wifi-section {
-  background: white;
-  border-radius: 18px;
-  padding: 24px;
-  margin-bottom: 24px;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-}
-
-.wifi-section h2 {
-  margin-top: 0;
-  margin-bottom: 12px;
-  color: #1d1d1f;
-  font-size: 1.3rem;
-}
-
-.wifi-current {
-  margin: 0 0 12px;
-  color: #6b6b70;
-  font-size: 0.95rem;
-}
-
-.wifi-form {
-  display: grid;
-  grid-template-columns: 1fr 1fr auto;
-  gap: 10px;
-  align-items: center;
-}
-
-.wifi-form input {
-  padding: 12px 14px;
-  border: 1px solid #d2d2d7;
-  border-radius: 12px;
-  font-size: 0.95rem;
-  outline: none;
-}
-
-.wifi-form input:focus {
-  border-color: #007aff;
-}
-
-.btn-wifi {
-  background: #007aff;
-  color: white;
-  border: none;
-  border-radius: 12px;
-  padding: 12px 14px;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.btn-wifi:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.wifi-hint {
-  margin-top: 10px;
-  color: #8a6d3b;
-  font-size: 0.9rem;
-}
-
-.network-switch {
-  margin-top: 12px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
-}
-
-.network-switch label {
-  color: #6b6b70;
-  font-size: 0.92rem;
-}
-
-.network-switch select {
-  padding: 10px 12px;
-  border: 1px solid #d2d2d7;
   border-radius: 10px;
-  background: white;
-  color: #1d1d1f;
-  transition: opacity 0.2s ease, background-color 0.2s ease, color 0.2s ease;
-}
-
-.network-switch select:disabled {
-  opacity: 0.45;
-  background: #f2f2f5;
-  color: #8e8e93;
-  cursor: not-allowed;
-}
-
-.btn-switch-network {
-  background: #34c759;
-  color: #fff;
-  border: none;
-  border-radius: 10px;
-  padding: 10px 14px;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.btn-switch-network:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* ── Wi-Fi Scanner ────────────────────────────── */
-.wifi-scanner {
-  margin-top: 16px;
-  margin-bottom: 16px;
-}
-
-.wifi-scanner-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-.wifi-scanner-header h3 {
-  margin: 0;
-  font-size: 1.05rem;
-  color: #1d1d1f;
-}
-
-.btn-scan {
-  background: #007aff;
-  color: #fff;
-  border: none;
-  border-radius: 10px;
-  padding: 8px 16px;
-  font-size: 0.9rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-scan:hover:not(:disabled) {
-  background: #0056b3;
-}
-
-.btn-scan:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.scan-spinner-inline {
-  display: inline-block;
-  width: 16px;
-  height: 16px;
-  border: 2px solid #d2d2d7;
-  border-top-color: #007aff;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  vertical-align: middle;
-  margin-left: 6px;
-}
-
-.wifi-scanning-indicator {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 32px;
-  color: #86868b;
-  font-size: 0.95rem;
-}
-
-.scan-spinner {
-  width: 22px;
-  height: 22px;
-  border: 3px solid #e0e0e0;
-  border-top-color: #007aff;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.wifi-list {
-  border: 1px solid #e8e8ed;
-  border-radius: 12px;
   overflow: hidden;
 }
 
-.wifi-item {
+.settings-list.no-padding {
+  padding: 0;
+}
+
+/* ─── Row ─── */
+.settings-row {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 14px 16px;
-  border-bottom: 1px solid #f0f0f5;
+  min-height: 44px;
+  padding: 10px 16px;
+  gap: 12px;
+  position: relative;
+}
+
+.settings-row + .settings-row {
+  border-top: 0.5px solid rgba(60, 60, 67, 0.12);
+  margin-left: 0;
+}
+
+/* inset separator (starts after icon) */
+.settings-row + .settings-row::before {
+  content: none;
+}
+
+.settings-row.clickable {
   cursor: pointer;
   transition: background 0.15s;
 }
 
-.wifi-item:last-child {
-  border-bottom: none;
+.settings-row.clickable:active {
+  background: rgba(0, 0, 0, 0.04);
 }
 
-.wifi-item:hover {
-  background: #f5f5f7;
+.settings-row.row-connected {
+  background: rgba(52, 199, 89, 0.06);
 }
 
-.wifi-item-active {
-  background: #e8f5e9;
-}
-
-.wifi-item-active:hover {
-  background: #d8efd9;
-  cursor: default;
-}
-
-.wifi-item-left {
+/* ─── Row Icon ─── */
+.row-icon {
+  width: 29px;
+  height: 29px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: center;
+  font-size: 15px;
+  flex-shrink: 0;
+  color: #fff;
 }
 
-.wifi-signal-bars {
-  display: flex;
-  align-items: flex-end;
-  gap: 2px;
-  height: 20px;
-  width: 22px;
-}
+.row-icon.orange  { background: #FF9500; }
+.row-icon.red     { background: #FF3B30; }
+.row-icon.green   { background: #34C759; }
+.row-icon.blue    { background: #007AFF; }
+.row-icon.purple  { background: #AF52DE; }
+.row-icon.indigo  { background: #5856D6; }
+.row-icon.teal    { background: #5AC8FA; }
+.row-icon.yellow  { background: #FFCC00; }
+.row-icon.gray    { background: #8E8E93; }
+.row-icon.pink    { background: #FF2D55; }
 
-.signal-bar {
-  width: 4px;
-  border-radius: 1px;
-  background: #d2d2d7;
-  transition: background 0.2s;
-}
-
-.signal-bar:nth-child(1) { height: 5px; }
-.signal-bar:nth-child(2) { height: 9px; }
-.signal-bar:nth-child(3) { height: 14px; }
-.signal-bar:nth-child(4) { height: 20px; }
-
-.signal-bar.active { background: #007aff; }
-.wifi-item-active .signal-bar.active { background: #34c759; }
-
-.wifi-item-info {
+/* ─── Row Body (label area) ─── */
+.row-body {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  min-width: 0;
 }
 
-.wifi-ssid {
-  font-size: 0.95rem;
+.row-title {
+  font-size: 17px;
+  color: #000;
+  line-height: 1.29;
+}
+
+.row-sub {
+  font-size: 12px;
+  color: #8E8E93;
+  line-height: 1.35;
+  margin-top: 1px;
+}
+
+/* ─── Row Detail (right side) ─── */
+.row-detail {
+  font-size: 17px;
+  color: #8E8E93;
+  flex-shrink: 0;
+  text-align: right;
+  max-width: 55%;
+  word-break: break-all;
+}
+
+.row-detail.mono {
+  font-family: 'SF Mono', 'Menlo', 'Courier New', monospace;
+  font-size: 12px;
+}
+
+.row-detail.detail-on,
+.detail-on {
+  color: #34C759;
+  font-weight: 600;
+}
+
+.row-detail.detail-off,
+.detail-off {
+  color: #FF3B30;
+  font-weight: 600;
+}
+
+.detail-chevron {
+  color: #C7C7CC;
+  font-size: 20px;
+  font-weight: 300;
+}
+
+/* ─── Row placeholder / empty ─── */
+.settings-row-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px 16px;
+  color: #8E8E93;
+  font-size: 15px;
+}
+
+/* ─── Input Row ─── */
+.settings-input-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+}
+
+.settings-input-row + .settings-input-row,
+.settings-input-row + .settings-chips-row,
+.settings-chips-row + .settings-actions-row,
+.settings-input-row + .settings-actions-row {
+  border-top: 0.5px solid rgba(60, 60, 67, 0.12);
+}
+
+.settings-input-row input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 1px solid #D1D1D6;
+  border-radius: 10px;
+  font-size: 17px;
+  outline: none;
+  background: #F2F2F7;
+  color: #000;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  font-family: inherit;
+}
+
+.settings-input-row input:focus {
+  border-color: #007AFF;
+  box-shadow: 0 0 0 3.5px rgba(0, 122, 255, 0.15);
+  background: #fff;
+}
+
+.input-btn-primary {
+  padding: 10px 22px;
+  background: #007AFF;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 17px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.input-btn-primary:hover:not(:disabled) {
+  background: #0062CC;
+}
+
+.input-btn-primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ─── Chips Row ─── */
+.settings-chips-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 16px;
+  align-items: center;
+}
+
+.chips-label {
+  font-size: 13px;
+  color: #8E8E93;
+  margin-right: 4px;
+}
+
+.chip {
+  background: #F2F2F7;
+  border: none;
+  padding: 7px 16px;
+  border-radius: 100px;
+  font-size: 15px;
+  color: #007AFF;
+  cursor: pointer;
+  transition: all 0.15s;
   font-weight: 500;
-  color: #1d1d1f;
 }
 
-.wifi-detail {
-  font-size: 0.8rem;
-  color: #86868b;
+.chip:hover {
+  background: #E5E5EA;
 }
 
-.wifi-item-right {
+.chip:active {
+  background: #D1D1D6;
+  transform: scale(0.97);
+}
+
+/* ─── Actions Row ─── */
+.settings-actions-row {
+  display: flex;
+  gap: 10px;
+  padding: 12px 16px;
+  flex-wrap: wrap;
+}
+
+.action-btn {
+  flex: 1;
+  min-width: 140px;
+  padding: 12px 16px;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: center;
+}
+
+.action-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.action-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.green-btn {
+  background: #34C759;
+  color: #fff;
+}
+
+.green-btn:hover:not(:disabled) {
+  background: #2EA94F;
+}
+
+.blue-btn {
+  background: #007AFF;
+  color: #fff;
+}
+
+.blue-btn:hover:not(:disabled) {
+  background: #0062CC;
+}
+
+.danger-btn {
+  background: #F2F2F7;
+  color: #FF3B30;
+  border: 1px solid #E5E5EA;
+}
+
+.danger-btn:hover:not(:disabled) {
+  background: #FFF0F0;
+}
+
+/* ─── Select ─── */
+.row-select {
+  padding: 8px 12px;
+  border: 1px solid #D1D1D6;
+  border-radius: 8px;
+  background: #F2F2F7;
+  color: #000;
+  font-size: 15px;
+  outline: none;
+  font-family: inherit;
+}
+
+.row-select:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ─── Text Button ─── */
+.settings-text-btn {
+  background: none;
+  border: none;
+  color: #007AFF;
+  font-size: 15px;
+  cursor: pointer;
+  padding: 8px 16px;
+  margin-top: 8px;
+  font-family: inherit;
+}
+
+.settings-text-btn:hover {
+  text-decoration: underline;
+}
+
+/* ─── Footnote ─── */
+.settings-footnote {
+  font-size: 13px;
+  color: #8E8E93;
+  padding: 6px 16px 0;
+  line-height: 1.4;
+}
+
+/* ─── Alert ─── */
+.settings-alert {
+  margin-top: 8px;
+  padding: 10px 16px;
+  background: #FFF3F3;
+  border: 1px solid #FFCCCB;
+  border-radius: 10px;
+  color: #D32F2F;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* ─── Wi-Fi Signal Bars ─── */
+.wifi-signal {
+  display: flex;
+  align-items: flex-end;
+  gap: 1.5px;
+  height: 18px;
+  width: 20px;
   flex-shrink: 0;
 }
 
-.wifi-connected-badge {
-  color: #34c759;
-  font-weight: 600;
-  font-size: 0.85rem;
+.wifi-signal .signal-bar {
+  width: 3.5px;
+  border-radius: 1px;
+  background: #D1D1D6;
+  transition: background 0.2s;
 }
 
-.wifi-connect-hint {
-  color: #007aff;
-  font-size: 0.85rem;
+.wifi-signal .signal-bar:nth-child(1) { height: 4px; }
+.wifi-signal .signal-bar:nth-child(2) { height: 8px; }
+.wifi-signal .signal-bar:nth-child(3) { height: 12px; }
+.wifi-signal .signal-bar:nth-child(4) { height: 18px; }
+
+.wifi-signal .signal-bar.active { background: #007AFF; }
+.row-connected .wifi-signal .signal-bar.active { background: #34C759; }
+
+/* ─── Spin ─── */
+.scan-spinner-sm {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #D1D1D6;
+  border-top-color: #007AFF;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
 }
 
-.wifi-no-results {
-  text-align: center;
-  padding: 24px;
-  color: #86868b;
+.scan-spinner-md {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2.5px solid #E5E5EA;
+  border-top-color: #007AFF;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
 }
 
-.wifi-no-hint {
-  font-size: 0.85rem;
-  color: #aaa;
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
-/* Connect Dialog (overlay) */
-.wifi-connect-overlay {
+/* ─── Overlay / Dialog ─── */
+.overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0,0,0,0.4);
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  backdrop-filter: blur(4px);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
-.wifi-connect-dialog {
+.apple-dialog {
   background: #fff;
-  border-radius: 18px;
+  border-radius: 14px;
   width: 90%;
-  max-width: 420px;
-  box-shadow: 0 12px 40px rgba(0,0,0,0.2);
+  max-width: 400px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
   overflow: hidden;
 }
 
-.dialog-header {
+.apple-dialog-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px 24px 12px;
+  padding: 20px 20px 12px;
 }
 
-.dialog-header h3 {
+.apple-dialog-head h3 {
   margin: 0;
-  font-size: 1.1rem;
-  color: #1d1d1f;
+  font-size: 17px;
+  font-weight: 600;
+  color: #000;
 }
 
-.dialog-close {
-  background: #f5f5f7;
+.dialog-x {
+  background: #F2F2F7;
   border: none;
   width: 28px;
   height: 28px;
@@ -2296,442 +1758,446 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #6b6b70;
+  color: #8E8E93;
+  transition: background 0.15s;
 }
 
-.dialog-close:hover {
-  background: #e8e8ed;
+.dialog-x:hover {
+  background: #E5E5EA;
 }
 
-.dialog-body {
-  padding: 0 24px 16px;
+.apple-dialog-content {
+  padding: 0 20px 16px;
 }
 
-.dialog-network-info {
+.dialog-meta {
   display: flex;
   gap: 16px;
-  font-size: 0.9rem;
-  color: #6b6b70;
+  font-size: 14px;
+  color: #6e6e73;
   margin-bottom: 16px;
 }
 
-.dialog-password-field {
+.dialog-field {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.dialog-password-field label {
-  font-size: 0.9rem;
-  color: #6b6b70;
+.dialog-field label {
+  font-size: 14px;
+  color: #6e6e73;
+  font-weight: 500;
 }
 
-.password-input-wrap {
+.pw-input-wrap {
   display: flex;
-  border: 1px solid #d2d2d7;
-  border-radius: 12px;
+  border: 1px solid #D1D1D6;
+  border-radius: 10px;
   overflow: hidden;
+  background: #F2F2F7;
 }
 
-.password-input-wrap input {
+.pw-input-wrap input {
   flex: 1;
   border: none;
   padding: 12px 14px;
-  font-size: 1rem;
+  font-size: 17px;
   outline: none;
+  background: transparent;
+  font-family: inherit;
 }
 
-.toggle-password {
+.pw-toggle {
   background: transparent;
   border: none;
-  padding: 0 12px;
+  padding: 0 14px;
   cursor: pointer;
-  font-size: 1rem;
+  font-size: 17px;
 }
 
-.dialog-footer {
+.apple-dialog-actions {
   display: flex;
   gap: 10px;
-  padding: 0 24px 20px;
+  padding: 0 20px 20px;
   justify-content: flex-end;
 }
 
-.btn-dialog-cancel {
-  background: #f5f5f7;
-  color: #1d1d1f;
+.dlg-btn {
+  padding: 10px 22px;
   border: none;
   border-radius: 10px;
-  padding: 10px 20px;
-  font-weight: 500;
+  font-size: 17px;
+  font-weight: 600;
   cursor: pointer;
+  transition: all 0.15s;
 }
 
-.btn-dialog-cancel:hover:not(:disabled) {
-  background: #e8e8ed;
-}
-
-.btn-dialog-connect {
-  background: #007aff;
+.dlg-btn.primary {
+  background: #007AFF;
   color: #fff;
-  border: none;
-  border-radius: 10px;
-  padding: 10px 20px;
-  font-weight: 500;
-  cursor: pointer;
 }
 
-.btn-dialog-connect:hover:not(:disabled) {
-  background: #0056b3;
+.dlg-btn.primary:hover:not(:disabled) {
+  background: #0062CC;
 }
 
-.btn-dialog-connect:disabled,
-.btn-dialog-cancel:disabled {
-  opacity: 0.5;
+.dlg-btn.secondary {
+  background: #F2F2F7;
+  color: #000;
+}
+
+.dlg-btn.secondary:hover:not(:disabled) {
+  background: #E5E5EA;
+}
+
+.dlg-btn:disabled {
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
-/* Manual Wi-Fi toggle */
-.wifi-manual-toggle {
-  margin-top: 12px;
-  margin-bottom: 8px;
-}
-
-.btn-manual-toggle {
-  background: none;
-  border: none;
-  color: #007aff;
-  font-size: 0.9rem;
-  cursor: pointer;
-  padding: 4px 0;
-}
-
-.btn-manual-toggle:hover {
-  text-decoration: underline;
-}
-
-.logs-section {
-  margin-top: 24px;
-  padding: 24px;
-  background: white;
-  border-radius: 16px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.04);
-}
-
-.logs-header {
+/* ─── Volume ─── */
+.volume-row {
   display: flex;
-  justify-content: space-between;
   align-items: center;
   gap: 12px;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
+  padding: 14px 16px;
 }
 
-.logs-header h2 {
-  margin: 0;
+.vol-icon {
   font-size: 20px;
-  color: #1d1d1f;
+  flex-shrink: 0;
 }
 
-.log-control-btn {
-  padding: 8px 14px;
-  background: #007aff;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 13px;
+.vol-value {
+  font-size: 15px;
+  font-weight: 600;
+  color: #000;
+  min-width: 44px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.apple-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: #D1D1D6;
+  outline: none;
+}
+
+.apple-slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+}
+
+.apple-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #fff;
+  border: 0.5px solid rgba(0, 0, 0, 0.04);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15), 0 1px 1px rgba(0, 0, 0, 0.16);
   cursor: pointer;
-  transition: all 0.2s;
+  margin-top: -12px;
+  transition: transform 0.15s;
 }
 
-.log-control-btn:hover:not(:disabled) {
-  background: #0052cc;
-  transform: translateY(-1px);
+.apple-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.08);
 }
 
-.log-control-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.apple-slider::-moz-range-thumb {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #fff;
+  border: 0.5px solid rgba(0, 0, 0, 0.04);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15), 0 1px 1px rgba(0, 0, 0, 0.16);
+  cursor: pointer;
 }
 
-.log-control-btn.active {
-  background: #34c759;
-}
-
-.logs-container {
-  height: 400px;
-  background: #1a1a1a;
-  border-radius: 12px;
-  padding: 16px;
-  overflow-y: auto;
-  font-family: 'Monaco', 'Courier New', monospace;
-  font-size: 12px;
-  color: #e0e0e0;
-  border: 1px solid #333;
-}
-
-.logs-empty {
+/* ─── Telegram Chat ─── */
+.chat-frame {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  color: #666;
+  max-height: 520px;
+  background: #fff;
+  border-radius: 10px;
+  overflow: hidden;
 }
 
-.logs-empty p {
+.chat-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: #F9F9F9;
+  border-bottom: 0.5px solid rgba(60, 60, 67, 0.12);
+}
+
+.chat-header-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #007AFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.chat-header-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-header-name {
+  font-size: 17px;
+  font-weight: 600;
+  color: #000;
+}
+
+.chat-header-status {
+  font-size: 12px;
+  color: #8E8E93;
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 200px;
+  max-height: 380px;
+  background: #F2F2F7;
+}
+
+.chat-empty-state {
+  text-align: center;
+  padding: 40px 16px;
+  color: #8E8E93;
+  font-size: 15px;
+}
+
+.chat-empty-state small {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+  color: #AEAEB2;
+}
+
+.chat-bubble-wrap {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.chat-bubble-wrap.incoming {
+  justify-content: flex-start;
+}
+
+.chat-bubble-wrap.outgoing {
+  justify-content: flex-end;
+}
+
+.chat-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #007AFF;
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.chat-bubble {
+  max-width: 78%;
+  padding: 8px 12px;
+  border-radius: 18px;
+  position: relative;
+  word-break: break-word;
+}
+
+.incoming .chat-bubble {
+  background: #fff;
+  color: #000;
+  border-bottom-left-radius: 4px;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+}
+
+.outgoing .chat-bubble {
+  background: #007AFF;
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+.chat-sender {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #007AFF;
+  margin-bottom: 2px;
+}
+
+.outgoing .chat-sender {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.chat-attachment {
+  display: inline-block;
+  font-size: 13px;
+  color: #8E8E93;
+  margin-bottom: 2px;
+}
+
+.outgoing .chat-attachment {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.chat-media-image,
+.chat-media-video {
+  width: 100%;
+  max-width: 240px;
+  border-radius: 12px;
+  margin: 4px 0;
+  display: block;
+}
+
+.chat-media-audio {
+  width: 100%;
+  max-width: 240px;
   margin: 4px 0;
 }
 
-.logs-hint {
-  font-size: 11px;
-  color: #555;
+.chat-file-link {
+  display: inline-block;
+  margin: 4px 0;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: #F2F2F7;
+  color: #007AFF;
+  text-decoration: none;
+  font-size: 14px;
 }
 
-.log-line {
-  display: flex;
-  gap: 12px;
-  padding: 6px 0;
-  border-bottom: 1px solid #2a2a2a;
-  align-items: flex-start;
+.chat-file-link:hover {
+  text-decoration: underline;
 }
 
-.log-line:last-child {
-  border-bottom: none;
+.chat-meta-box {
+  margin: 4px 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.04);
+  font-size: 13px;
+  line-height: 1.4;
 }
 
-.log-time {
-  color: #888;
-  white-space: nowrap;
-  flex-shrink: 0;
-  font-size: 11px;
+.outgoing .chat-meta-box {
+  background: rgba(255, 255, 255, 0.15);
 }
 
-.log-message {
-  color: #e0e0e0;
-  word-break: break-all;
+.chat-text {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.35;
   white-space: pre-wrap;
 }
 
-.log-scan {
-  background: rgba(0, 122, 255, 0.1);
-  color: #64b5f6;
-}
-
-.log-match {
-  background: rgba(52, 199, 89, 0.1);
-  color: #81c784;
-}
-
-.log-send {
-  background: rgba(255, 159, 64, 0.1);
-  color: #ffb74d;
-}
-
-.log-error {
-  background: rgba(244, 67, 54, 0.1);
-  color: #ef5350;
-}
-
-.log-system-error {
-  background: rgba(255, 59, 48, 0.16);
-  color: #ff6b6b;
-  border-left: 3px solid #ff3b30;
-  padding-left: 10px;
-}
-
-.log-skip {
-  background: rgba(156, 39, 176, 0.1);
-  color: #ba68c8;
-}
-
-.status-message {
-  padding: 16px;
-  border-radius: 12px;
-  text-align: center;
-  font-weight: 500;
-}
-
-.status-message.success {
-  background: #d1f2d1;
-  color: #1a7a1a;
-}
-
-.status-message.error {
-  background: #ffd6d6;
-  color: #c41c1c;
-}
-
-@media (max-width: 768px) {
-  .pi-control-page {
-    padding: 12px;
-  }
-
-  .page-header h1 {
-    font-size: 28px;
-  }
-
-  .page-header .subtitle {
-    font-size: 14px;
-  }
-
-  .info-card,
-  .control-section,
-  .wifi-section,
-  .speak-section,
-  .logs-section {
-    padding: 16px;
-    border-radius: 16px;
-  }
-
-  .info-card h2,
-  .control-section h2,
-  .speak-section h2,
-  .logs-section h2 {
-    font-size: 18px;
-    margin-bottom: 12px;
-  }
-
-  .info-grid {
-    display: grid;
-    grid-template-columns: 1fr; /* stack vertically */
-    gap: 12px;
-  }
-
-  .info-item {
-    padding: 12px;
-  }
-
-  .info-label {
-    font-size: 13px;
-  }
-
-  .info-value {
-    font-size: 15px;
-  }
-
-  .btn-refresh {
-    width: 100%;
-    padding: 12px;
-    font-size: 15px;
-  }
-  
-  .button-grid {
-    grid-template-columns: 1fr;
-    gap: 12px;
-  }
-
-  .control-btn {
-    padding: 14px 20px;
-    font-size: 15px;
-  }
-
-  .btn-icon {
-    font-size: 20px;
-  }
-  
-  .speak-form {
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .wifi-form {
-    grid-template-columns: 1fr;
-  }
-
-  .speak-input {
-    font-size: 15px;
-    padding: 12px;
-  }
-
-  .btn-speak {
-    width: 100%;
-    padding: 12px 20px;
-    font-size: 15px;
-  }
-
-  .logs-container {
-    max-height: 250px;
-    font-size: 12px;
-  }
-}
-
-/* Credential Section */
-.credential-section {
-  background: #fff;
-  border-radius: 16px;
-  padding: 24px;
-  margin-top: 16px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.07);
-}
-.credential-section h2 {
-  font-size: 1.15rem;
-  font-weight: 600;
-  margin-bottom: 16px;
-  color: #1d1d1f;
-}
-.credential-status {
-  background: #f5f5f7;
-  border-radius: 12px;
-  padding: 14px 16px;
-  margin-bottom: 16px;
-}
-.credential-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 6px 0;
-  border-bottom: 1px solid #e5e5ea;
-}
-.credential-row:last-of-type {
-  border-bottom: none;
-}
-.credential-label {
-  font-size: 0.85rem;
-  color: #6e6e73;
-  font-weight: 500;
-}
-.credential-value {
-  font-size: 0.85rem;
-  color: #1d1d1f;
-  font-family: 'SF Mono', 'Menlo', monospace;
-  word-break: break-all;
-  max-width: 60%;
+.chat-time {
+  display: block;
   text-align: right;
+  font-size: 11px;
+  margin-top: 2px;
 }
-.credential-error {
-  margin-top: 10px;
-  padding: 10px 14px;
-  background: #fff3f3;
-  border: 1px solid #ffcccb;
-  border-radius: 10px;
-  color: #d32f2f;
-  font-size: 0.85rem;
-  font-weight: 500;
+
+.incoming .chat-time {
+  color: #8E8E93;
 }
-.api-valid {
-  color: #34c759 !important;
-  font-weight: 700;
+
+.outgoing .chat-time {
+  color: rgba(255, 255, 255, 0.6);
 }
-.api-invalid {
-  color: #ff3b30 !important;
-  font-weight: 700;
+
+.chat-input-bar {
+  display: flex;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #F9F9F9;
+  border-top: 0.5px solid rgba(60, 60, 67, 0.12);
 }
-.credential-upload {
-  margin-top: 12px;
+
+.chat-input-bar input {
+  flex: 1;
+  border: 1px solid #D1D1D6;
+  border-radius: 20px;
+  padding: 8px 16px;
+  font-size: 17px;
+  outline: none;
+  background: #fff;
+  font-family: inherit;
+  transition: border-color 0.2s;
 }
-.credential-help-wrap {
-  display: inline-flex;
+
+.chat-input-bar input:focus {
+  border-color: #007AFF;
+}
+
+.chat-input-bar button {
+  background: #007AFF;
+  color: #fff;
+  border: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 17px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.chat-input-bar button:hover:not(:disabled) {
+  background: #0062CC;
+}
+
+.chat-input-bar button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ─── Help Row ─── */
+.settings-help-row {
+  position: relative;
+  display: flex;
   align-items: center;
   gap: 8px;
-  position: relative;
-  margin-bottom: 8px;
+  padding: 12px 16px;
 }
-.credential-help-label {
-  font-size: 0.82rem;
+
+.help-label {
+  font-size: 14px;
   color: #6e6e73;
-  font-weight: 600;
+  font-weight: 500;
 }
-.credential-help-trigger {
+
+.help-trigger {
   width: 20px;
   height: 20px;
   border-radius: 50%;
@@ -2741,117 +2207,278 @@ onUnmounted(() => {
   font-size: 12px;
   font-weight: 700;
   color: #fff;
-  background: #007aff;
+  background: #007AFF;
   cursor: help;
   user-select: none;
 }
-.credential-help-popover {
+
+.help-popover {
   position: absolute;
-  left: 0;
-  top: calc(100% + 8px);
-  width: min(420px, 88vw);
-  background: #1d1d1f;
+  left: 16px;
+  top: calc(100% + 4px);
+  width: min(400px, 85vw);
+  background: #1D1D1F;
   color: #fff;
   border-radius: 12px;
-  padding: 12px 14px;
-  box-shadow: 0 12px 30px rgba(0,0,0,0.25);
+  padding: 14px 16px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
   opacity: 0;
   visibility: hidden;
   transform: translateY(6px);
   transition: all 0.18s ease;
   z-index: 30;
 }
-.credential-help-popover p {
+
+.help-popover p {
   margin: 0 0 8px;
-  font-size: 0.82rem;
+  font-size: 14px;
 }
-.credential-help-popover ol {
+
+.help-popover ol {
   margin: 0;
   padding-left: 18px;
-  font-size: 0.78rem;
-  line-height: 1.45;
+  font-size: 13px;
+  line-height: 1.5;
 }
-.credential-help-wrap:hover .credential-help-popover,
-.credential-help-wrap:focus-within .credential-help-popover {
+
+.settings-help-row:hover .help-popover,
+.settings-help-row:focus-within .help-popover {
   opacity: 1;
   visibility: visible;
   transform: translateY(0);
 }
+
 .credential-hint {
-  font-size: 0.82rem;
-  color: #8e8e93;
-  margin-bottom: 10px;
+  font-size: 13px;
+  color: #8E8E93;
+  padding: 4px 16px 8px;
   line-height: 1.5;
+  margin: 0;
 }
+
 .credential-hint a {
-  color: #007aff;
+  color: #007AFF;
   text-decoration: none;
 }
+
 .credential-hint a:hover {
   text-decoration: underline;
 }
-.credential-textarea {
+
+/* ─── Textarea ─── */
+.settings-textarea-wrap {
+  padding: 0 12px 4px;
+}
+
+.settings-textarea-wrap textarea {
   width: 100%;
-  border: 1px solid #d1d1d6;
+  border: 1px solid #D1D1D6;
   border-radius: 10px;
   padding: 12px 14px;
-  font-family: 'SF Mono', 'Menlo', monospace;
-  font-size: 0.78rem;
+  font-family: 'SF Mono', 'Menlo', 'Courier New', monospace;
+  font-size: 13px;
   resize: vertical;
-  background: #fafafa;
-  color: #1d1d1f;
-  transition: border-color 0.2s;
-  box-sizing: border-box;
-}
-.credential-textarea:focus {
+  background: #F2F2F7;
+  color: #000;
   outline: none;
-  border-color: #007aff;
-  box-shadow: 0 0 0 3px rgba(0,122,255,0.12);
+  box-sizing: border-box;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
-.credential-textarea:disabled {
-  opacity: 0.5;
+
+.settings-textarea-wrap textarea:focus {
+  border-color: #007AFF;
+  box-shadow: 0 0 0 3.5px rgba(0, 122, 255, 0.12);
+  background: #fff;
+}
+
+.settings-textarea-wrap textarea:disabled {
+  opacity: 0.4;
   cursor: not-allowed;
 }
-.credential-actions {
+
+/* ─── Log Section ─── */
+.log-toolbar {
   display: flex;
-  gap: 10px;
-  margin-top: 10px;
+  gap: 8px;
+  padding: 0 0 10px;
   flex-wrap: wrap;
 }
-.btn-credential-upload {
-  padding: 10px 20px;
-  background: #007aff;
+
+.log-pill {
+  padding: 6px 14px;
+  background: #fff;
+  color: #007AFF;
+  border: 1px solid #D1D1D6;
+  border-radius: 100px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+
+.log-pill:hover:not(:disabled) {
+  background: #F2F2F7;
+}
+
+.log-pill:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.log-pill.active {
+  background: #34C759;
   color: #fff;
-  border: none;
+  border-color: #34C759;
+}
+
+.log-terminal {
+  height: 360px;
+  background: #1C1C1E;
   border-radius: 10px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s, opacity 0.2s;
+  padding: 14px;
+  overflow-y: auto;
+  font-family: 'SF Mono', 'Menlo', 'Courier New', monospace;
+  font-size: 12px;
+  color: #E5E5EA;
 }
-.btn-credential-upload:hover:not(:disabled) {
-  background: #0056cc;
+
+.log-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #636366;
 }
-.btn-credential-upload:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
+
+.log-empty p {
+  margin: 4px 0;
 }
-.btn-clear-inbox {
-  padding: 10px 20px;
-  background: #f5f5f7;
-  color: #ff3b30;
-  border: 1px solid #e5e5ea;
-  border-radius: 10px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s, opacity 0.2s;
+
+.log-empty small {
+  font-size: 11px;
+  color: #48484A;
 }
-.btn-clear-inbox:hover:not(:disabled) {
-  background: #fff0f0;
+
+.log-line {
+  display: flex;
+  gap: 10px;
+  padding: 5px 0;
+  border-bottom: 1px solid #2C2C2E;
+  align-items: flex-start;
 }
-.btn-clear-inbox:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
+
+.log-line:last-child {
+  border-bottom: none;
+}
+
+.log-ts {
+  color: #636366;
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-size: 11px;
+}
+
+.log-msg {
+  color: #E5E5EA;
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+
+.log-scan { color: #64D2FF; }
+.log-match { color: #30D158; }
+.log-send { color: #FFD60A; }
+.log-error { color: #FF453A; }
+.log-skip { color: #BF5AF2; }
+
+.log-system-error {
+  color: #FF6961;
+  border-left: 3px solid #FF3B30;
+  padding-left: 8px;
+}
+
+/* ─── Toast ─── */
+.settings-toast {
+  position: fixed;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 12px 24px;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 500;
+  z-index: 9999;
+  max-width: 90%;
+  text-align: center;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  animation: toast-in 0.3s ease;
+}
+
+.settings-toast.success {
+  background: rgba(52, 199, 89, 0.9);
+  color: #fff;
+}
+
+.settings-toast.error {
+  background: rgba(255, 59, 48, 0.9);
+  color: #fff;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 600px) {
+  .settings-page {
+    padding: 0 8px 32px;
+  }
+
+  .settings-large-title {
+    font-size: 28px;
+  }
+
+  .settings-input-row {
+    flex-direction: column;
+  }
+
+  .settings-input-row input {
+    font-size: 16px;
+  }
+
+  .input-btn-primary {
+    width: 100%;
+    font-size: 16px;
+  }
+
+  .settings-actions-row {
+    flex-direction: column;
+  }
+
+  .action-btn {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .row-detail {
+    font-size: 15px;
+  }
+
+  .chat-text {
+    font-size: 16px;
+  }
+
+  .log-terminal {
+    height: 260px;
+  }
 }
 </style>
