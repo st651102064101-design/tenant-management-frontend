@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from 'vite';
 import vue from '@vitejs/plugin-vue';
+import basicSsl from '@vitejs/plugin-basic-ssl';
 
 // Vite configuration file to build the Vue application.
 export default defineConfig(({ mode }) => {
@@ -13,7 +14,7 @@ export default defineConfig(({ mode }) => {
     : ['project.3bbddns.com', 'localhost', '127.0.0.1'];
 
   return {
-    plugins: [vue()],
+    plugins: [vue(), basicSsl()],
     server: {
       host: frontendHost,
       port: frontendPort,

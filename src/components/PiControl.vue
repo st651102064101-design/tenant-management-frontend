@@ -6,6 +6,24 @@
       <p class="settings-subtitle">ควบคุมระบบ OCR บน Raspberry Pi</p>
     </div>
 
+    <div class="settings-group">
+      <div class="settings-list">
+        <div class="settings-row pi-connection-row" :class="boardConnected ? 'pi-connected' : 'pi-disconnected'">
+          <div class="row-icon" :class="boardConnected ? 'green' : 'red'">
+            <span>{{ boardConnected ? '✓' : '✕' }}</span>
+          </div>
+          <div class="row-body">
+            <span class="row-title">{{ boardConnected ? 'ติดต่อบอร์ดได้' : 'ติดต่อบอร์ดไม่ได้' }}</span>
+            <span class="row-sub">{{ boardConnected ? 'สถานะอัปเดตอัตโนมัติ' : 'กำลังพยายามเชื่อมต่อใหม่อัตโนมัติ...' }}</span>
+          </div>
+          <span class="row-detail" :class="boardConnected ? 'detail-on' : 'detail-off'">
+            {{ boardConnected ? 'ONLINE' : 'OFFLINE' }}
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <template v-if="boardConnected">
     <!-- ─── System Info ─── -->
     <div class="settings-group">
       <div class="settings-group-label">ข้อมูลระบบ</div>
@@ -504,6 +522,8 @@
       </div>
     </div>
 
+    </template>
+
     <!-- Status Toast -->
     <div v-if="message" class="settings-toast" :class="messageType">
       {{ message }}
@@ -526,6 +546,18 @@ let ws = null; // WebSocket instance
 const uptimeBaseSeconds = ref(null); // base seconds parsed from last message
 const uptimeLastReceivedAt = ref(null);
 const uptimeDisplay = ref('');
+const boardConnected = ref(false);
+const lastBoardSuccessAt = ref(0);
+let boardHealthInterval = null;
+
+function setBoardConnected() {
+  boardConnected.value = true;
+  lastBoardSuccessAt.value = Date.now();
+}
+
+function setBoardDisconnected() {
+  boardConnected.value = false;
+}
 
 function parseUptimeToSeconds(uptimeStr) {
   if (!uptimeStr) return null;
@@ -604,11 +636,14 @@ function connectWebSocket() {
           // Update display immediately
           updateUptimeDisplay();
 
+          setBoardConnected();
+
           // Also store full piInfo (already done) — keeps template consistent
 
         } else {
           // On error broadcasts, clear or set error
           console.warn('[WebSocket] pi-info error:', message.data && message.data.error);
+          setBoardDisconnected();
         }
       }
     } catch (e) {
@@ -618,11 +653,13 @@ function connectWebSocket() {
   ws.onclose = () => {
     console.log('[WebSocket] Disconnected (PiControl), reconnecting in 3s...');
     wsConnected.value = false;
+    setBoardDisconnected();
     setTimeout(connectWebSocket, 3000);
   };
   ws.onerror = (err) => {
     console.error('[WebSocket] Error (PiControl):', err);
     wsConnected.value = false;
+    setBoardDisconnected();
   };
 }
 const loading = ref(false);
@@ -703,6 +740,7 @@ const refreshInfo = async () => {
     ]);
     piInfo.value = info;
     serviceStatus.value = status;
+    setBoardConnected();
 
     // Update uptime display immediately from API response
     if (info) {
@@ -720,6 +758,7 @@ const refreshInfo = async () => {
     }
   } catch (err) {
     console.error('Error refreshing info:', err);
+    setBoardDisconnected();
     showMessage('ไม่สามารถเชื่อมต่อกับ Pi ได้: ' + err.message, 'error');
   } finally {
     loading.value = false;
@@ -1752,6 +1791,17 @@ onMounted(() => {
   // Start uptime ticker (update every second)
   uptimeTicker = setInterval(updateUptimeDisplay, 1000);
 
+  // Mark as offline if no successful board update for 10 seconds
+  boardHealthInterval = setInterval(() => {
+    if (!lastBoardSuccessAt.value) {
+      boardConnected.value = false;
+      return;
+    }
+    if (Date.now() - lastBoardSuccessAt.value > 10000) {
+      boardConnected.value = false;
+    }
+  }, 2000);
+
   // Connect WebSocket
   connectWebSocket();
 });
@@ -1772,6 +1822,10 @@ onUnmounted(() => {
   if (chatPollInterval) {
     clearInterval(chatPollInterval);
     chatPollInterval = null;
+  }
+  if (boardHealthInterval) {
+    clearInterval(boardHealthInterval);
+    boardHealthInterval = null;
   }
 });
 
@@ -1815,6 +1869,18 @@ onUnmounted(() => {
 /* ─── Group ─── */
 .settings-group {
   margin-bottom: 28px;
+}
+
+.pi-connection-row {
+  min-height: 56px;
+}
+
+.pi-connected {
+  background: rgba(52, 199, 89, 0.06);
+}
+
+.pi-disconnected {
+  background: rgba(255, 59, 48, 0.08);
 }
 
 .settings-group-label {
