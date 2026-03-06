@@ -15,4 +15,4 @@ NODE_BIN_DIR="$(dirname "$NPM_BIN")"
 export PATH="$NODE_BIN_DIR:$PATH"
 
 cd /Users/kriang/tenant-management-frontend || exit 1
-"$NPM_BIN" run dev -- --host 0.0.0.0 --https
+"$NPM_BIN" run dev -- --host 0.0.0.0
