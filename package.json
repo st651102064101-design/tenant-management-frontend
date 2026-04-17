@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "pm2:start": "npx pm2 start ecosystem.config.cjs --only tenant-management-frontend",
+    "pm2:restart": "npx pm2 restart tenant-management-frontend"
   },
   "dependencies": {
     "bootstrap": "5.3",
